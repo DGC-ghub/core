@@ -1,6 +1,6 @@
 # Convenções — DGC Hub
 
-Padrões compartilhados por todo o monorepo `core`.
+Padrões compartilhados por todos os repositórios da DGC Hub.
 
 ## Branches
 
@@ -23,11 +23,11 @@ Formato [Conventional Commits](https://www.conventionalcommits.org/):
 ```
 
 Tipos: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`.
-O escopo é a pasta afetada — ex: `feat(automations): adiciona monitor de logs`.
+O escopo é o módulo afetado dentro do repo — ex: `feat(api): adiciona endpoint de health`.
 
 ## Nomeação
 
-- Pastas de sistemas/automações: `kebab-case`.
+- Pastas/módulos dentro de um repo: `kebab-case`.
 - Variáveis de ambiente: `UPPER_SNAKE_CASE`, documentadas em `.env.example`.
 - Nada de segredos no repositório — apenas `.env.example` com valores fictícios.
 
