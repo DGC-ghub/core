@@ -1,41 +1,36 @@
 # DGC Hub — `core`
 
-Repositório central da software house **DGC Hub**. Reúne automações, sistemas e
-documentação compartilhada num único monorepo.
+Playbook de engenharia da software house **DGC Hub**. Este repositório **não**
+hospeda código de produto — a DGC Hub usa **multi-repo puro**, cada sistema em
+seu próprio repositório. Aqui ficam apenas os padrões, configs base e o CI
+compartilhado.
 
-## Estrutura
+## Conteúdo
 
 ```
 core/
-├── automations/   # Scripts e automações (CI/CD, monitoramento, deploys, ETL)
-├── systems/       # Sistemas e produtos (cada um em sua subpasta)
-├── docs/          # Documentação técnica, de arquitetura e de processo
-├── .editorconfig  # Padrão de formatação entre editores
-└── .gitignore     # Ignora artefatos, segredos e dependências
+├── docs/
+│   ├── STACK.md         # stack oficial + versões
+│   ├── QUALITY.md       # Biome, TS strict, Vitest, pre-commit, CI
+│   ├── REPOS.md         # multi-repo: naming e como criar projeto novo
+│   ├── CONVENTIONS.md   # branches, commits, nomeação, PR
+│   └── decisions/       # ADRs — registro de decisões
+├── configs/             # biome.json e tsconfig.base.json base p/ herdar
+└── .github/workflows/   # ci-node.yml — reusable workflow dos repos
 ```
 
-Cada item dentro de `automations/` e `systems/` vive em sua própria subpasta,
-com README e dependências próprias (o monorepo não impõe uma stack única).
+## Começar um projeto novo
 
-## Como começar
+Use **"Use this template"** no repo `dgc-template-ts` (web/TS) ou `dgc-template-py`
+(Python). Detalhes em [`docs/REPOS.md`](docs/REPOS.md).
 
-```bash
-git clone git@github.com:DGC-ghub/core.git
-cd core
-```
+## Padrões
 
-Depois entre na subpasta do sistema/automação em que vai trabalhar e siga o
-README local.
-
-## Convenções
-
-Padrões de branch, commit e nomeação em [`docs/CONVENTIONS.md`](docs/CONVENTIONS.md).
-
-## Roadmap de automações
-
-- [ ] Pipeline de CI/CD (GitHub Actions)
-- [ ] Monitoramento de logs
-- [ ] Deploy automático
+- [Stack oficial](docs/STACK.md)
+- [Qualidade de código](docs/QUALITY.md)
+- [Estratégia de repositórios](docs/REPOS.md)
+- [Convenções de Git](docs/CONVENTIONS.md)
+- [Decisões de arquitetura (ADRs)](docs/decisions/)
 
 ---
 _Repositório privado — uso interno da DGC Hub._

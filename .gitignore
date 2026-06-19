@@ -51,3 +51,6 @@ temp/
 
 # ---- scratch de execucao (subagent-driven) ----
 /.superpowers/
+
+# ---- Planos de trabalho (superpowers) — nao versionar ----
+/docs/superpowers/
