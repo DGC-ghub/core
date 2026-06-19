@@ -1,17 +1,11 @@
-# docs
+# docs — playbook DGC Hub
 
-Documentação central da DGC Hub — o que vale para o repositório inteiro, não
-para um sistema específico.
+Documentação de padrões válida para toda a DGC Hub.
 
-## Conteúdo
+- [STACK.md](STACK.md) — stack oficial e versões
+- [QUALITY.md](QUALITY.md) — Biome, TS strict, testes, pre-commit, CI
+- [REPOS.md](REPOS.md) — estratégia multi-repo, naming, criar projeto novo
+- [CONVENTIONS.md](CONVENTIONS.md) — branches, commits, nomeação, PR
+- [decisions/](decisions/) — ADRs (registro de decisões de arquitetura)
 
-- [`CONVENTIONS.md`](CONVENTIONS.md) — padrões de branch, commit e nomeação.
-
-## O que documentar aqui
-
-- Decisões de arquitetura que afetam mais de um sistema
-- Processos de trabalho (release, deploy, onboarding)
-- Padrões e guias compartilhados
-
-> Documentação específica de um sistema/automação fica no README da própria
-> subpasta, não aqui.
+> Documentação específica de um sistema fica no README do repo dele, não aqui.
