@@ -11,3 +11,4 @@ Estrutura central para a Software House DGC Hub.
 - [ ] Pipeline de CI/CD (GitHub Actions)
 - [ ] Monitoramento de logs
 - [ ] Deploy automático
+# core
