@@ -1,0 +1,39 @@
+name: CI Node (reusable)
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        description: "Versão do Node"
+        required: false
+        type: string
+        default: "22"
+      working-directory:
+        description: "Diretório do projeto dentro do repo"
+        required: false
+        type: string
+        default: "."
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+          cache: npm
+          cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+      - name: Install
+        run: npm ci
+      - name: Lint + format (Biome)
+        run: npx @biomejs/biome ci .
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build --if-present
