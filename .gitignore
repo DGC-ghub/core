@@ -54,3 +54,17 @@ temp/
 
 # ---- Planos de trabalho (superpowers) — nao versionar ----
 /docs/superpowers/
+
+# ---- Mídia e rascunhos pesados (19/11/2026) ----
+# vídeo e áudio nunca entram; as peças são regeradas pela fábrica (repo dgc-reels)
+*.mp4
+*.mp3
+*.wav
+tmp-demo-recordings/
+docs/marketing/**/*.png
+docs/marketing/**/*.jpg
+docs/marca/referencias/
+docs/marca/esbocos/
+# saída solta de agentes e ferramentas locais
+analise.md
+.paperclip/
