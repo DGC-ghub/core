@@ -2,6 +2,10 @@
 
 Documentação de padrões válida para toda a DGC Hub.
 
+## Para entender a ideia atual
+
+[Comece aqui — a ideia da DGC, sem complicar](COMECE_AQUI.md). Primeiro entenda a proposta, o estado e o próximo passo; depois consulte os padrões abaixo quando houver uma entrega aprovada.
+
 **▶ [Esteira de Produção](esteira/)** — o passo a passo de como tocamos um projeto da ideia até o ar.
 
 ### Padrões

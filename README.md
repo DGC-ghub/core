@@ -4,11 +4,18 @@ Playbook de engenharia e operação da software house **DGC Hub**.
 
 Este repositório **não** hospeda código de produto — a DGC Hub usa **multi-repo puro**, cada sistema em seu próprio repositório. Aqui ficam padrões, configs base, CI compartilhado, docs operacionais, esteira comercial/técnica e decisões estratégicas.
 
+## Comece aqui — entenda a ideia antes dos detalhes
+
+[Leia o guia simples da DGC](docs/COMECE_AQUI.md): o que queremos vender, um exemplo de automação Microsoft 365, o que ainda não foi feito e o único próximo passo.
+
+Esta é uma proposta de foco para validação, não uma solução pronta ou uma mudança automática de prioridade dos projetos existentes. Os planos anteriores abaixo permanecem como histórico e referência.
+
 ## Conteúdo
 
 ```text
 core/
 ├── docs/
+│   ├── COMECE_AQUI.md                   # ideia M365 em português simples + estado e próximo passo
 │   ├── STACK.md                         # stack oficial + versões
 │   ├── QUALITY.md                       # Biome, TS strict, Vitest, pre-commit, CI
 │   ├── REPOS.md                         # multi-repo: naming e como criar projeto novo
@@ -82,4 +89,4 @@ Contexto histórico e decisões devem ser espelhados em:
 - Manutenção não é desenvolvimento ilimitado.
 
 ---
-_Repositório privado — uso interno da DGC Hub._
+_Repositório público. Não incluir credenciais, dados de clientes ou negociações internas._
