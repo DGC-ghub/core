@@ -12,6 +12,7 @@ serviço `dgc-cerebro` está instalado mas **desligado**, e nenhum job de cron f
 | Config do Hermes | `~/.hermes/config.yaml` | `model.provider: openai-codex`, `model.default: gpt-6-sol`, `timezone: America/Sao_Paulo`, `terminal.cwd: /home/cerebro/cerebro`, `whatsapp.unauthorized_dm_behavior: ignore`. |
 | `.env` do Hermes | `~/.hermes/.env` (modo 600) | `WHATSAPP_ENABLED=true`, `WHATSAPP_MODE=bot`, `WHATSAPP_ALLOWED_USERS=<numero do Gabriel>`, `WHATSAPP_GROUP_POLICY=pairing` (grupos fechados: não repassa nada de grupo). Danilo entra depois do aceite dele. |
 | Personalidade | `~/.hermes/SOUL.md` (fonte: `hermes/SOUL.md`) | |
+| Plugin `barra-do-robo` | `~/.hermes/plugins/barra-do-robo/` (fonte: `hermes/plugins/barra-do-robo/`), habilitado em `plugins.enabled` | Gancho `pre_gateway_dispatch`: no WhatsApp, o Hermes descarta (`skip`) qualquer texto que, sem espaços à esquerda, comece com "/" (comandos do robô de vendas), e também mensagem marcada como do dono do aparelho. O resto segue normal. Teste: `python3 -m pytest automations/terceiro-cerebro/test_barra_do_robo.py`. |
 | Skill | `~/.hermes/skills/dgc/dgc-cerebro/SKILL.md` (fonte: `hermes/skills/dgc-cerebro/SKILL.md`) | |
 | Pasta de trabalho | `/home/cerebro/cerebro` | `AGENTS.md` (fonte: `hermes/AGENTS.md`), `repos -> /srv/cerebro/repos`, `docs -> /srv/cerebro/docs`. |
 | CLI `quadro` | `/home/cerebro/ferramentas/terceiro-cerebro/*.py` + wrapper `/home/cerebro/.local/bin/quadro` | Config em `/home/cerebro/.config/dgc-cerebro/cerebro.env` (modo 600). Estado da cota em `~/.local/state/dgc-cerebro/cota.json`. |
@@ -83,6 +84,15 @@ número da DGC; a Evolution segue como o outro aparelho do robô de vendas.
    ```
    Confira `active (running)` (mesmo comando com `status`) e `free -h` com mais de 3 GB disponíveis.
 2. Criar as rodadas de cobrança: `deploy/cron-jobs.md`.
-3. Antes de ligar o serviço de verdade: acertar a convivência com o robô de vendas. Texto que começa com "/" é do robô, mas o gateway
-   do Hermes também responde a "/comandos" dele, e responde com aviso de "comando desconhecido" ao que não conhece. Isso precisa ser resolvido (por exemplo, trocar o
-   prefixo dos comandos do robô ou fazer o Hermes ignorar esses comandos) antes de os dois conviverem no mesmo número.
+
+## Convivência com o robô de vendas (resolvido)
+
+- **Comandos com "/":** o plugin `barra-do-robo` (acima) faz o Hermes nunca responder a eles no WhatsApp. Sem o plugin,
+  o gateway executaria `/status`, `/help` etc. ou responderia "comando desconhecido" por cima do robô.
+- **Mensagens do próprio número (robô via Evolution, alertas):** o bridge do Hermes em modo `bot` já descarta
+  mensagens `fromMe` (`scripts/whatsapp-bridge/bridge.js`, linhas 557 a 594: `drop_echo`/`drop_disabled` em
+  `owner_message_gate.js`), a menos que `WHATSAPP_FORWARD_OWNER_MESSAGES` seja ligado (padrão desligado; **não ligar**).
+  Se ligar, o plugin ainda descarta o que vier marcado como do dono (`whatsapp_from_owner`).
+- **Outros números** (clínicas): fora da `WHATSAPP_ALLOWED_USERS`, o Hermes ignora (`unauthorized_dm_behavior: ignore`).
+- Pendência: `/sethome` (para entrega do cron sem chat id) também começa com "/" e seria descartado pelo plugin; use o
+  `<CHAT_ID>` explícito no `cron-jobs.md`.

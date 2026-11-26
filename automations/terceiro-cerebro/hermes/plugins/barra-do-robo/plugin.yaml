@@ -1,0 +1,6 @@
+name: barra-do-robo
+version: "1.0.0"
+description: "No WhatsApp, o Hermes ignora texto que começa com '/' (comando do robô de vendas) e mensagens do próprio dono do aparelho."
+author: "DGC"
+provides_hooks:
+  - pre_gateway_dispatch

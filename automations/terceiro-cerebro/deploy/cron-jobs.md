@@ -14,9 +14,7 @@ Confira depois de criar: `hermes cron list` mostra a próxima execução.
 
 Com o gateway no ar e o Gabriel já tendo escrito para o número da DGC, o destino é `whatsapp:<CHAT_ID>`. O `<CHAT_ID>`
 é o id do chat dele no WhatsApp (algo como `<numero>@s.whatsapp.net`); veja-o em `hermes sessions list` ou nos logs
-(`hermes logs`). Alternativa sem id: mande `/sethome` do chat do Gabriel e use `--deliver whatsapp`, que entrega no
-"home channel". Nos dois casos, `/sethome` começa com "/", então o robô de vendas também o vê; faça isso com ele
-avisado.
+(`hermes logs`). Use o id explícito (o `/sethome` não serve aqui: começa com "/" e o plugin `barra-do-robo` o descarta).
 
 ## Os dois jobs
 
