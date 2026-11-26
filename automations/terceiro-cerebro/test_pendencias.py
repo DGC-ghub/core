@@ -125,3 +125,19 @@ def test_ordenada_da_mais_antiga_para_a_mais_nova_painel_por_ultimo():
 def test_pendencia_e_dataclass_com_campos():
     p = Pendencia("gabriel", "painel", "", "t", "", "d")
     assert p.detalhe == "d"
+
+
+def _bloq(corpo):
+    return [(issue(), [com(corpo)])]
+
+
+def test_falsos_positivos_da_regex_nao_contam():
+    for corpo in ("Subtask Danilo", "depende do DevOps", "o Gabriel já respondeu"):
+        assert pendencias_do_socio("gabriel", _bloq(corpo), [], "") == [], corpo
+        assert pendencias_do_socio("danilo", _bloq(corpo), [], "") == [], corpo
+
+
+def test_positivos_depende_do_e_aguardando():
+    assert len(pendencias_do_socio("danilo", _bloq("depende do Danilo"), [], "")) == 1
+    assert len(pendencias_do_socio("gabriel", _bloq("Aguardando o Gabriel"), [], "")) == 1
+    assert len(pendencias_do_socio("danilo", _bloq("Ask Danilo to approve"), [], "")) == 1

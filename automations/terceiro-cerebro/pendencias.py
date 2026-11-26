@@ -13,7 +13,7 @@ SOCIOS = ("gabriel", "danilo")
 TITULO_MAX = 120
 
 _ESPERA = re.compile(
-    r"(esperando|espera|depende|falta|waiting for|ask)\W+(o |a )?(gabriel|danilo)",
+    r"\b(esperando|espera|depende|falta|aguard\w*|waiting for|ask)\W+(o |a |do |da )?(gabriel|danilo)\b",
     re.IGNORECASE,
 )
 _ITEM = re.compile(r"^\d+[a-z]?\.\s+(.*\S)\s*$")

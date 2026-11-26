@@ -1,3 +1,4 @@
+import threading
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
@@ -79,3 +80,33 @@ def test_json_de_formato_estranho_vira_estado_vazio(tmp_path):
 def test_arquivo_ausente_e_estado_vazio(tmp_path):
     assert Cota(tmp_path / "nao-existe.json").pode_enviar(
         "gabriel", datetime(2026, 11, 27, 9, tzinfo=BRT))
+
+
+def test_reservar_respeita_teto_e_janela(tmp_path):
+    c = Cota(tmp_path / "c.json")
+    t = datetime(2026, 11, 27, 9, tzinfo=BRT)
+    assert [c.reservar("gabriel", t) for _ in range(4)] == [True, True, True, False]
+    assert not c.reservar("danilo", datetime(2026, 11, 27, 21, 0, tzinfo=BRT))
+    assert c.reservar("danilo", t)
+
+
+def test_reservar_concorrente_deixa_passar_exatamente_3(tmp_path):
+    caminho = tmp_path / "c.json"
+    t = datetime(2026, 11, 27, 9, tzinfo=BRT)
+    n = 12
+    barreira = threading.Barrier(n)
+    resultados = []
+
+    def tentar():
+        c = Cota(caminho)  # uma instância por thread, como processos separados
+        barreira.wait()
+        resultados.append(c.reservar("gabriel", t))
+
+    fios = [threading.Thread(target=tentar) for _ in range(n)]
+    for f in fios:
+        f.start()
+    for f in fios:
+        f.join()
+    assert sum(resultados) == 3
+    assert not Cota(caminho).pode_enviar("gabriel", t)
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["c.json", "c.json.lock"]
