@@ -1,154 +1,103 @@
-# Instalação do Hermes na VM (terceiro cérebro da DGC)
+# Instalação do Hermes (terceiro cérebro da DGC)
 
-Estado em 26/11/2026: tudo instalado e configurado na VM trabalhadora, **menos** os três passos do dono (abaixo). O
-serviço `dgc-cerebro` está instalado mas **desligado**, e nenhum job de cron foi criado.
+Como instalar o terceiro cérebro numa máquina Linux. Os detalhes da máquina da DGC (usuários, permissões, onde fica cada
+segredo, o que cada usuário consegue ler e os riscos que sobram) ficam no documento interno de infraestrutura, fora deste
+repositório.
 
-## Como ficou
+## Peças
 
-| Peça | Onde | Observação |
+| Peça | Onde | Fonte neste repositório |
 |---|---|---|
-| Usuário | `cerebro` (home `/home/cerebro`, modo 700, `loginctl enable-linger`) | Isolado do `dgc`: o terminal do Hermes não lê os segredos do `dgc`. Em 26/11 também foram fechados `/home/pi` (750) e os arquivos do `dgc` em `/tmp` (o-rwx); ver "Isolamento do `cerebro`" abaixo. Teste: `sudo -u cerebro cat /home/dgc/.config/dgc-atendimento/compose.env` dá "Permission denied". |
-| Hermes Agent | `/home/cerebro/.hermes/hermes-agent`, método git, commit `9976f4857b72439d79016354d7b6e1a3ee952e2f` | `hermes --version` → `v0.22.5+1722.g9976f48`. Instalado com o `scripts/install.sh` do próprio repositório (`--commit … --non-interactive --skip-browser --skip-computer-use`). **Não rode `hermes update`** sem ok do dono: ele sai do commit fixado. |
-| Config do Hermes | `~/.hermes/config.yaml` | `model.provider: openai-codex`, `model.default: gpt-6-sol`, `timezone: America/Sao_Paulo`, `terminal.cwd: /home/cerebro/cerebro`, `whatsapp.unauthorized_dm_behavior: ignore`. |
-| `.env` do Hermes | `~/.hermes/.env` (modo 600) | `WHATSAPP_ENABLED=true`, `WHATSAPP_MODE=bot`, `WHATSAPP_ALLOWED_USERS=<telefones dos dois sócios, com e sem o 9º dígito>`, `WHATSAPP_GROUP_POLICY=allowlist`, `WHATSAPP_GROUP_ALLOWED_USERS=<JID do grupo dos sócios>`, `WHATSAPP_REQUIRE_MENTION=false` e `WHATSAPP_MENTION_PATTERNS=["^[ ]*@?hermes(?![a-z])"]` (no grupo ele lê toda mensagem e decide pelo contexto se entra; o plugin `barra-do-robo` deixa o `[SILENT]` valer quando não chamaram o Hermes de forma explícita). Só o grupo dos sócios é liberado; qualquer outro grupo é ignorado. |
-| Personalidade | `~/.hermes/SOUL.md` (fonte: `hermes/SOUL.md`) | |
-| Plugin `barra-do-robo` | `~/.hermes/plugins/barra-do-robo/` (fonte: `hermes/plugins/barra-do-robo/`), habilitado em `plugins.enabled` | Gancho `pre_gateway_dispatch`: no WhatsApp, o Hermes descarta (`skip`) qualquer texto que, sem espaços à esquerda, comece com "/" (comandos do robô de vendas), e também mensagem marcada como do dono do aparelho. O resto segue normal. Em grupo, também marca `event.reply_expected = False` nas mensagens que não chamam o Hermes (menção, resposta a ele, ou "hermes" no começo), para o `[SILENT]` do modelo ser aceito. Teste: `python3 -m pytest automations/terceiro-cerebro/test_barra_do_robo.py`. |
-| Skill | `~/.hermes/skills/dgc/dgc-cerebro/SKILL.md` (fonte: `hermes/skills/dgc-cerebro/SKILL.md`) | |
-| Pasta de trabalho | `/home/cerebro/cerebro` | `AGENTS.md` (fonte: `hermes/AGENTS.md`), `repos -> /srv/cerebro/repos`, `docs -> /srv/cerebro/docs`. |
-| CLI `quadro` | `/home/cerebro/ferramentas/terceiro-cerebro/*.py` + wrapper `/home/cerebro/.local/bin/quadro` | Config em `/home/cerebro/.config/dgc-cerebro/cerebro.env` (modo 600). Estado da cota em `~/.local/state/dgc-cerebro/cota.json`. |
-| Conhecimento | `/srv/cerebro/{repos,docs}` (dono `dgc`, grupo `cerebro`, pastas 750, arquivos 640) | Atualizado por `deploy/atualizar-copias.sh`, instalado em `~dgc/bin/atualizar-copias-cerebro.sh`. |
-| Timer das cópias | `~dgc/.config/systemd/user/cerebro-copias.{service,timer}` (usuário `dgc`) | Todo dia 06:00 UTC = 03:00 de Brasília. Ativo. Rodar à mão: `systemctl --user start cerebro-copias.service`; log: `journalctl --user -u cerebro-copias`. |
-| Serviço | `/home/cerebro/.config/systemd/user/dgc-cerebro.service` | Gerado pelo próprio Hermes (`generate_systemd_unit`: `HERMES_SUPERVISED_CHILD=1`, `KillMode=mixed`, `ExecStop`/`ExecStopPost` com limpeza do cgroup, `StartLimitIntervalSec=0`, `RestartPreventExitStatus=78`, `TimeoutStopSec` calculado), mais `WorkingDirectory=%h/cerebro`, `MemoryMax=1500M`, `RestartSec=30`, `RestartSteps=5` e `RestartMaxDelaySec=10min`. **Instalado, desabilitado e parado.** |
+| Usuário do agente | um usuário Linux só para o Hermes (sem sudo, home 700) | |
+| Hermes Agent | `~/.hermes/hermes-agent`, instalado pelo `scripts/install.sh` do próprio Hermes num commit fixado | |
+| Personalidade | `~/.hermes/SOUL.md` | `hermes/SOUL.md` |
+| Skill | `~/.hermes/skills/dgc/dgc-cerebro/SKILL.md` | `hermes/skills/dgc-cerebro/SKILL.md` |
+| Pasta de trabalho | `~/cerebro` com `AGENTS.md`, `repos/` e `docs/` (links para as cópias de leitura) | `hermes/AGENTS.md` (placeholders) |
+| Plugins | `~/.hermes/plugins/barra-do-robo/` e `~/.hermes/plugins/trava-de-saida/`, **donos root, só leitura** | `hermes/plugins/*` |
+| CLI `quadro` | código em diretório do root, só leitura; wrapper em `/usr/local/bin/quadro`; roda como usuário de serviço próprio | `*.py` desta pasta |
+| Lista de destinos | arquivo do root lido pelo `trava-de-saida` (`/etc/dgc-cerebro/destinos.conf`) | |
+| Cópias de leitura | clones parciais dos repositórios e cópia dos documentos, atualizados por um timer | `deploy/atualizar-copias.sh`, `deploy/cerebro-copias.{service,timer}` |
+| Serviço | unit de usuário `dgc-cerebro` | `deploy/dgc-cerebro.service` |
+| Rodadas e rotinas | cron do Hermes | `deploy/cron-jobs.md` |
 
-### Detalhes das cópias
+## Passo a passo
 
-- Repositórios (de `DGC-ghub`): produto-hermes, day-trade-app, dgc-reels, core, dgc-ai-desk, Vitrine_DGC, dgc-template-ts.
-  Clonados por HTTPS com o acesso GitHub que o `dgc` já tem na VM (`credential.helper store`); a chave
-  `~/.ssh/id_github_trabalhadora` não tem mais acesso. Em cada cópia: `git remote set-url --push origin no_push` (nenhum
-  push sai dali) e um sparse-checkout que deixa de fora `.env*`, `*.env`, `*.pem`, `*.key`, `node_modules/`, `*.db`,
-  `*.sqlite`, `pacientes/` e `conversas/`.
-- Documentos: `rsync` de `docs/` da cópia de trabalho mais recente dos agentes (`~dgc/paperclip/.paperclip-runtime/runs/*/workspace/docs`,
-  a que tem `docs/foco/PAINEL.md`), com os mesmos excludes mais `.git/` e `**/pacientes/**`, `**/conversas/**`. Sem cópia
-  de trabalho, usa `repos/core/docs`.
-- Trava final: arquivo que casa com `sk-ant-|ghp_|github_pat_` sai da cópia (em `docs/`, é apagado; em `repos/`, sai do
-  checkout) e, se tiver chave de verdade, o serviço falha e avisa no log.
-- O `cerebro` roda `git` nessas cópias (`safe.directory '*'` no `.gitconfig` dele); `git push` falha de propósito.
+1. **Usuário do agente.** Crie o usuário, `loginctl enable-linger`, home 700. Ele não pode ler segredo de nenhum outro serviço.
+2. **Hermes.** Rode o `scripts/install.sh` do Hermes como esse usuário, no commit fixado (`--commit <sha> --non-interactive
+   --skip-browser --skip-computer-use`). Configure `model.*`, `timezone: America/Sao_Paulo`, `terminal.cwd` apontando para
+   `~/cerebro` e `whatsapp.unauthorized_dm_behavior: ignore`. No `.env` do Hermes: WhatsApp em modo `bot`, allowlist só com os
+   sócios, `WHATSAPP_GROUP_POLICY=allowlist` com o grupo dos sócios, `WHATSAPP_REQUIRE_MENTION=false`. Não rode `hermes update` sem
+   ok do dono (sai do commit fixado).
+3. **CLI `quadro` fora do alcance do agente.** A chave do quadro é do dono e tem os poderes dele, então o agente não pode lê-la
+   nem mudar o código que a usa:
+   - um usuário de serviço próprio para a CLI (sem login, sem sudo), que é o único a ler o arquivo de configuração
+     (`CHAVE=VALOR`: `PAPERCLIP_URL`, `PAPERCLIP_TOKEN`, `PAPERCLIP_COMPANY`, `PAINEL_PATH`, `COTA_PATH`, `SOCIOS`; ver `README.md`);
+   - código copiado para um diretório do root, só leitura; um wrapper do root em `/usr/local/bin/quadro` que fixa `CEREBRO_ENV`
+     e roda `python3 -E -s -B .../quadro.py` como esse usuário;
+   - uma regra única de sudo, sem senha, que deixa o usuário do agente rodar só esse wrapper como o usuário da CLI (validar com
+     `visudo -cf` antes de instalar);
+   - a cota (`COTA_PATH`) num diretório do usuário da CLI.
+   Confira, como o usuário do agente: `quadro pendencias gabriel` funciona, ler o arquivo de configuração dá "Permission
+   denied", escrever no diretório do código dá "Permission denied" e `sudo -n -l` mostra só a regra do `quadro`.
+4. **Plugins.** Copie os dois plugins para `~/.hermes/plugins/` com dono root (pastas 755, arquivos 644) e habilite:
+   `hermes plugins enable barra-do-robo` e `hermes plugins enable trava-de-saida`. Crie a lista de destinos do `trava-de-saida`
+   (dono root, legível pelo usuário do agente, não gravável): uma linha por destino, o JID do grupo (`<id>@g.us`), o LID de cada
+   sócio (`<id>@lid`) e os telefones (com e sem o 9º dígito); `#` começa comentário.
+5. **Cópias de leitura.** Prepare `/srv/cerebro/{repos,docs}` (ver o cabeçalho de `deploy/atualizar-copias.sh`), instale o script
+   e as units `cerebro-copias.{service,timer}` no usuário dono das cópias e ligue o timer (a cada 3 horas).
+6. **SOUL, skill, AGENTS.** Copie os arquivos. No `AGENTS.md` instalado troque os placeholders (`<JID do grupo>`, `<LID do Gabriel>`,
+   nomes de contato) pelos valores reais, só na máquina.
+7. **Os 3 passos do dono:** chave do quadro (abaixo), logins do Codex (`hermes auth add openai-codex`, duas contas diferentes) e
+   pareamento do WhatsApp (`hermes whatsapp`, modo `bot`, como segundo aparelho do número da DGC).
+8. **Serviço e cron.** `systemctl --user enable --now dgc-cerebro` (com `XDG_RUNTIME_DIR` do usuário do agente) e as rodadas de
+   `deploy/cron-jobs.md`.
 
-### Memória do Hermes (só por instrução)
+### Chave do quadro (Paperclip)
 
-A memória do Hermes é por perfil, não por pessoa: um `MEMORY.md` e uma busca de sessões (`session_search`) que cobre as conversas
-de todos. Não existe isolamento por sócio. O que foi feito: `memory.user_profile_enabled: false` (desliga o `USER.md`, onde
-cairia o perfil pessoal de cada sócio) e, no SOUL e na skill, a regra de só gravar trabalho na memória, nunca usar
-`session_search` de conversa do outro sócio para assunto pessoal e, de uma conversa para a outra, só passar item de trabalho.
-**Isso é garantido só por instrução (prompt), não por mecanismo.** Se isso virar problema, o caminho é um perfil do Hermes por sócio.
+A chave de API do quadro (board API key) é da conta do Gabriel, e o `quadro` age como ele. Todo comentário que a CLI posta sai com
+`[Hermes via WhatsApp] ` na frente, para ficar claro no quadro que foi o Hermes, não o Gabriel.
 
-### Isolamento do `cerebro` (o que ele consegue ler na VM)
-
-- Fechado em 26/11: `chmod 750 /home/pi` (era 755; dados antigos do Paperclip de 15/11, `dgc-hub`, projetos) e `chmod -R o-rwx` nos
-  arquivos do `dgc` em `/tmp` (81 mil arquivos de trabalho dos agentes). Nada do `dgc` roda como outro usuário, então os serviços não foram afetados. O `/tmp` privado (abaixo) fecha o resto para o serviço.
-- Ainda legível, de propósito ou fora do alcance: `/srv/cerebro` (as cópias), `/etc` e `/var/lib` do sistema (só arquivos padrão do Ubuntu),
-  os serviços em `127.0.0.1` (Paperclip 3100, Chatwoot, robô: pedem token que o `cerebro` não tem) e o `tailscale status`. O `docker.sock` é do grupo `docker` (o `cerebro` não está).
-- **/tmp privado e teto de memória (drop-ins de sistema, uid 1002 = `id -u cerebro`):**
-  - `deploy/systemd/user@1002.service.d/cerebro.conf` -> `/etc/systemd/system/user@1002.service.d/cerebro.conf` (`PrivateTmp=yes`).
-    Tudo que o gerenciador de usuário do `cerebro` sobe (o serviço do Hermes, workers, crons) vê um `/tmp` vazio e só dele.
-    `PrivateTmp` dentro da unit de usuário não funciona nesta VM (`apparmor_restrict_unprivileged_userns=1`), por isso vai no `user@1002.service`.
-  - `deploy/systemd/user-1002.slice.d/memoria.conf` -> `/etc/systemd/system/user-1002.slice.d/memoria.conf` (`MemoryHigh=1500M`, `MemoryMax=1800M`):
-    teto para tudo do usuário, inclusive os escopos `hermes-worker-*` que escapam do `MemoryMax=1500M` da unit.
-  - Aplicar: copiar os dois arquivos, `sudo systemctl daemon-reload` e `sudo systemctl restart user@1002.service` (com nada do `cerebro` rodando).
-  - Resíduo: uma sessão interativa do `cerebro` (SSH, `sudo -u cerebro -i`) **não** passa pelo gerenciador de usuário e ainda vê o `/tmp` real; ali só
-    vale o `chmod -R o-rwx` de 26/11 nos arquivos do `dgc` que já existiam, e arquivos novos do `dgc` com umask 022 ficam legíveis.
-    Não use sessão interativa do `cerebro` para tarefas do agente.
-- Frente de trade: o `atualizar-copias.sh` tira da cópia de `day-trade-app` e `dgc-ai-desk` qualquer arquivo ou pasta com `cofre`, `vault`, `saldo`, `carteira` ou `wallet` no nome (em 26/11 não havia nenhum).
-
-## Os 3 passos do dono (Gabriel)
-
-Nenhuma chave passa pelo chat. Faça um, confira, e só então o próximo.
-
-### 1. Chave do quadro (Paperclip)
-
-A chave de API do quadro (board API key) é da conta do Gabriel, e o `quadro` age como ele.
-
-1. Entre no Paperclip no navegador, logado com a sua conta: o endereço do Paperclip da DGC (o do servidor do Danilo, só na tailnet).
-2. Abra o console do navegador (F12) e rode:
+1. Logado no Paperclip da DGC, no console do navegador (F12):
    ```js
    fetch('/api/board-api-keys', {method:'POST', headers:{'content-type':'application/json'},
      body: JSON.stringify({name:'cerebro-vm'})}).then(r=>r.json()).then(k=>console.log(k.token, k.expiresAt))
    ```
-   O `token` aparece só uma vez. Confira também `expiresAt` (a chave tem validade por padrão; anote a data para renovar).
-3. Na VM, como `cerebro`, cole o valor depois de `PAPERCLIP_TOKEN=` (sem aspas, sem espaço):
-   ```sh
-   ssh -t dgc@<IP-da-VM> 'sudo -u cerebro -i nano /home/cerebro/.config/dgc-cerebro/cerebro.env'
-   ```
-   O arquivo é modo 600 e fora de qualquer Git. Não cole a chave no chat nem em comentário de tarefa.
-4. Teste: `ssh dgc@<IP-da-VM> 'sudo -u cerebro -i quadro pendencias gabriel'` deve listar pendências (não "falta PAPERCLIP_TOKEN").
+   O `token` aparece só uma vez; anote `expiresAt` para renovar.
+2. Cole o valor depois de `PAPERCLIP_TOKEN=` no arquivo de configuração da CLI, com um editor rodando como root (nunca no chat,
+   nunca em comentário, nunca num comando que fique no histórico ou na lista de processos).
+3. Teste como o usuário do agente: `quadro pendencias gabriel`.
 
-### 2. Logins do Codex (duas contas do Gabriel)
+## Depois de qualquer atualização do Hermes
 
-```sh
-ssh -t dgc@<IP-da-VM> 'sudo -u cerebro -i hermes auth add openai-codex'
-ssh -t dgc@<IP-da-VM> 'sudo -u cerebro -i hermes auth add openai-codex'
-```
-
-Faça o login da **primeira conta** na primeira vez e da **segunda conta** (outra) na segunda. Se aparecer o aviso
-"same OpenAI account", a segunda conta não serve: use outra. Confira com `hermes auth list`. O pool passa para a outra
-conta quando uma bate o limite.
-
-### 3. Parear o WhatsApp (QR)
+Os plugins **falham abertos**: se um não carregar (atualização do Hermes, plugin desligado, pasta movida), o Hermes segue
+rodando sem a trava, sem erro visível. Depois de qualquer `hermes update`, reinstalação ou mudança de config:
 
 ```sh
-ssh -t dgc@<IP-da-VM> 'sudo -u cerebro -i hermes whatsapp'
+hermes plugins list | grep -E 'barra-do-robo|trava-de-saida'   # os dois têm de dizer "enabled"
 ```
 
-Escolha o modo `bot` e leia o QR com o celular da DGC (Aparelhos conectados). Ele entra como **segundo aparelho** do
-número da DGC; a Evolution segue como o outro aparelho do robô de vendas.
+e, no log do gateway, `whatsapp connected`. Sem o `barra-do-robo`, o `[SILENT]` do grupo vira mensagem padrão e os "/comandos" do
+robô de vendas voltam a ser respondidos; sem o `trava-de-saida`, envio e rotina para fora do grupo deixam de ser barrados.
 
-## Depois dos 3 passos (quem constrói)
-
-1. Subir o serviço (o `systemctl --user` do `cerebro` precisa do `XDG_RUNTIME_DIR`):
-   ```sh
-   ssh dgc@<IP-da-VM> 'sudo -u cerebro env XDG_RUNTIME_DIR=/run/user/$(id -u cerebro) systemctl --user enable --now dgc-cerebro'
-   ```
-   Confira `active (running)` (mesmo comando com `status`) e `free -h` com mais de 3 GB disponíveis.
-2. Criar as rodadas de cobrança: `deploy/cron-jobs.md`.
-
-## Grupo dos sócios
-
-Desde 26/11 o Hermes está no grupo "DGC Hub · Sócios + Hermes" (Gabriel, Danilo e o número da DGC). Ele lê toda mensagem do grupo, sem precisar de @menção, e decide pelo contexto se é com ele ou se tem algo útil a dizer; quando os sócios conversam entre si, responde só `[SILENT]` e nada sai. Intervenção espontânea: no máximo 1 por hora e dentro do teto de 3 por dia. Trabalho (cobrança, crítica, erros e
-vitórias, sempre com prova) vai para o grupo; o privado fica para assunto pessoal. As duas rodadas diárias (`deploy/cron-jobs.md`) falam no grupo,
-com teto de 3 mensagens espontâneas por dia (`quadro cota grupo` / `quadro enviei grupo`). Os sócios podem pedir rotinas novas no grupo e o Hermes
-mesmo cria o job de cron. O Danilo está em `SOCIOS` (`danilo:<telefone>`) e na allowlist; o nome e o LID dele o Hermes aprende na primeira
-mensagem e guarda na memória. O robô de vendas (Evolution) usa o mesmo número: como ele só trata "/comandos" de sócio e o plugin
-`barra-do-robo` descarta os "/" no Hermes, os dois não se atropelam, mas vale conferir no primeiro dia como o robô trata mensagens do grupo.
-
-## Quem é quem no WhatsApp (só na VM)
-
-O Gabriel chega ao Hermes com outro nome de contato e com um LID, não com o telefone, e a allowlist leva o telefone com e sem o 9º dígito.
-O mapeamento real (nome de contato e LID) vive só no `AGENTS.md` instalado em `/home/cerebro/cerebro/AGENTS.md`; no repositório ficam
-placeholders (`<nome do Gabriel no WhatsApp>`, `<LID do Gabriel>`). Ao reinstalar o `AGENTS.md`, troque os placeholders com `sed` na VM.
-Em conversa o Hermes **sempre responde** (o `[SILENT]` é só do cron): o gateway rejeita silêncio em resposta a sócio e manda uma mensagem padrão.
-
-## Convivência com o robô de vendas (resolvido)
-
-- **Comandos com "/":** o plugin `barra-do-robo` (acima) faz o Hermes nunca responder a eles no WhatsApp. Sem o plugin,
-  o gateway executaria `/status`, `/help` etc. ou responderia "comando desconhecido" por cima do robô.
-- **Mensagens do próprio número (robô via Evolution, alertas):** o bridge do Hermes em modo `bot` já descarta
-  mensagens `fromMe` (`scripts/whatsapp-bridge/bridge.js`, linhas 557 a 594: `drop_echo`/`drop_disabled` em
-  `owner_message_gate.js`), a menos que `WHATSAPP_FORWARD_OWNER_MESSAGES` seja ligado (padrão desligado; **não ligar**).
-  Se ligar, o plugin ainda descarta o que vier marcado como do dono (`whatsapp_from_owner`).
-- **Outros números** (clínicas): fora da `WHATSAPP_ALLOWED_USERS`, o Hermes ignora (`unauthorized_dm_behavior: ignore`).
-- Pendência: `/sethome` (para entrega do cron sem chat id) também começa com "/" e seria descartado pelo plugin; use o
-  destino explícito (`whatsapp:<LID do Gabriel>@lid`) no `cron-jobs.md`.
-
-## Ponte do WhatsApp: `link-preview-js`
-
-O Baileys (ponte do WhatsApp) importa `link-preview-js` (dependência opcional dele) ao enviar mensagem com URL; sem o pacote, a resposta falha
-com `ERR_MODULE_NOT_FOUND`. O `package.json` da ponte do Hermes não o lista (falha do upstream). Correção aplicada na VM, como `cerebro`:
+Também depois de update: a ponte do WhatsApp precisa do `link-preview-js` (o Baileys o importa ao enviar mensagem com URL e o
+`package.json` da ponte não o lista). Como o usuário do agente:
 
 ```sh
 cd ~/.hermes/hermes-agent/scripts/whatsapp-bridge && npm install --no-save link-preview-js@3
 ```
 
-`--no-save` não altera `package.json` nem o lock (o `git status` do Hermes segue limpo; `node_modules` é ignorado) e sobrevive a reinício do serviço.
-**Um `hermes update` ou reinstalação que refaça o `node_modules` pode apagar o pacote**: depois de qualquer update, rode o comando de novo e reinicie o
-serviço. Não existe opção do Hermes para desligar a prévia de link (o `makeWASocket` do `bridge.js` não a expõe); a alternativa seria editar o código
-do Hermes, o que quebra o update, então ficou o `npm install --no-save`.
+e reinicie o serviço. `--no-save` não suja o Git do Hermes, mas um update que refaça o `node_modules` apaga o pacote.
+
+## Como o Hermes se comporta (resumo)
+
+- **Grupo dos sócios:** lê toda mensagem e decide pelo contexto. Chamada explícita (@menção, resposta a ele, mensagem começando
+  com "hermes") sempre tem resposta; conversa entre os sócios fica em `[SILENT]` (o `barra-do-robo` marca `reply_expected=False`
+  para o gateway aceitar o silêncio). Intervenção sem ser chamado: `quadro intervir` (no máximo 1 por hora, dentro do teto de 3
+  por dia do grupo).
+- **Privado:** sempre responde. O `[SILENT]` só vale no grupo, quando não é com ele, e nas rodadas automáticas.
+- **Rodadas e rotinas (cron):** entregam no grupo; qualquer `quadro` com código diferente de 0 vira `[SILENT]`. O `trava-de-saida`
+  recusa rotina entregando fora da lista de destinos, mais frequente que de hora em hora, ou com script/monitor.
+- **Comandos com "/":** são do robô de vendas; o `barra-do-robo` os descarta antes do Hermes. Por isso o destino do cron é sempre
+  explícito (`whatsapp:<JID do grupo>`), nunca `/sethome`.
+- **Mensagens do próprio número** (robô via Evolution): a ponte em modo `bot` as descarta (`WHATSAPP_FORWARD_OWNER_MESSAGES`
+  desligado; não ligar), e o `barra-do-robo` descarta o que vier marcado como do dono.

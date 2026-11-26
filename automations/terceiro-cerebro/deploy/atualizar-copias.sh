@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Atualiza as cópias de LEITURA que o terceiro cérebro (usuário "cerebro") consulta.
-# Roda como o usuário "dgc" (timer de usuário cerebro-copias.timer); o "cerebro" só lê.
+# Roda como o usuário dono das cópias (timer de usuário cerebro-copias.timer); o usuário do agente ("cerebro") só lê.
 #
 #   /srv/cerebro/repos/<nome>   clone parcial (só leitura) de cada repositório da DGC
 #   /srv/cerebro/docs/          cópia dos documentos da cópia de trabalho dos agentes
@@ -11,8 +11,8 @@
 #
 # Preparação única (como root, ver deploy/instalar.md):
 #   mkdir -p /srv/cerebro/repos /srv/cerebro/docs
-#   chown -R dgc:cerebro /srv/cerebro && chmod 2750 /srv/cerebro /srv/cerebro/repos /srv/cerebro/docs
-# O dgc NÃO entra no grupo cerebro; o script usa "sudo -n chgrp/chmod" no fim de cada rodada.
+#   chown -R <dono>:cerebro /srv/cerebro && chmod 2750 /srv/cerebro /srv/cerebro/repos /srv/cerebro/docs
+# O dono das cópias não entra no grupo cerebro; o script usa "sudo -n chgrp/chmod" no fim de cada rodada.
 set -uo pipefail
 umask 027
 
@@ -41,11 +41,10 @@ mkdir -p "$ESTADO"
 # Mesmo filtro para o checkout dos repositórios (sparse-checkout, estilo .gitignore, vale em qualquer profundidade).
 SPARSE=('/*' '!.env*' '!*.env' '!*.pem' '!*.key' '!node_modules/' '!*.db' '!*.sqlite' '!pacientes/' '!conversas/')
 
-# O acesso ao GitHub é o que o dgc já tem (credential.helper store, renovado pela própria VM). A chave SSH
-# ~/.ssh/id_github_trabalhadora não tem mais acesso. Nenhum segredo é gravado nas cópias: a URL guardada no clone não tem token.
+# O acesso ao GitHub é o do dono das cópias. Nenhum segredo é gravado nas cópias: a URL guardada no clone não tem token.
 export GIT_TERMINAL_PROMPT=0
 # Frente de trade (day-trade-app, dgc-ai-desk): Mesa BTC e Laboratório são simulação e podem ser lidos; cofre, chaves e
-# saldos reais não. Qualquer arquivo ou pasta com esses nomes sai do checkout (em 26/11 não havia nenhum, é preventivo).
+# saldos reais não. Qualquer arquivo ou pasta com esses nomes sai do checkout (preventivo).
 SPARSE_TRADE=('!*cofre*' '!*vault*' '!*saldo*' '!*carteira*' '!*wallet*')
 sparse_do_repo() {  # imprime um padrão por linha: o filtro geral e, nos repos de trade, o filtro do cofre
   printf '%s\n' "${SPARSE[@]}"
@@ -141,8 +140,8 @@ else
   log "ERRO: nenhuma origem de documentos encontrada"; erros=$((erros+1))
 fi
 
-# 3. Permissões: dono dgc, grupo cerebro, pastas 750 e arquivos 640, nada para os outros. O dgc não pertence ao grupo
-# cerebro (de propósito), então o chgrp e o chmod passam pelo sudo sem senha que o dgc já tem.
+# 3. Permissões: grupo cerebro, pastas 750 e arquivos 640, nada para os outros. O dono das cópias não pertence ao grupo
+# cerebro (de propósito), então o chgrp e o chmod passam pelo sudo.
 sudo -n chgrp -Rh cerebro "$DEST" || { log "ERRO: chgrp falhou"; erros=$((erros+1)); }
 sudo -n find "$DEST" -type d ! -perm 750 ! -perm 2750 -exec chmod 750 {} +
 sudo -n find "$DEST" -type f ! -perm 640 -exec chmod 640 {} +
