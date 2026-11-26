@@ -1,0 +1,19 @@
+[Unit]
+Description=DGC Cérebro (Hermes Agent, terceiro cérebro da DGC)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/cerebro
+Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
+# "gateway run" é o modo em primeiro plano; --external-supervisor faz /restart e atualizações saírem com 75 para o
+# systemd religar (por isso Restart=on-failure).
+ExecStart=%h/.local/bin/hermes gateway run --external-supervisor
+Restart=on-failure
+RestartSec=30
+MemoryMax=1500M
+TimeoutStopSec=60
+
+[Install]
+WantedBy=default.target

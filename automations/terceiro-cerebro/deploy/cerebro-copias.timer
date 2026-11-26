@@ -1,0 +1,11 @@
+[Unit]
+Description=Cópias do terceiro cérebro todo dia às 03:00 de Brasília
+
+[Timer]
+# A VM está em UTC: 06:00 UTC = 03:00 America/Sao_Paulo (sem horário de verão desde 2019).
+OnCalendar=*-*-* 06:00:00 UTC
+Persistent=true
+RandomizedDelaySec=120
+
+[Install]
+WantedBy=timers.target
