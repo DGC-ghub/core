@@ -13,8 +13,10 @@ Qualquer outra mensagem segue o caminho normal.
 """
 import re
 
-# "hermes," / "@hermes" / "Hermes:" no começo da frase chama o Hermes (mesmo padrão de WHATSAPP_MENTION_PATTERNS).
-_CHAMADA_PELO_NOME = re.compile(r"^[ ]*@?hermes(?![a-z])", re.IGNORECASE)
+# "hermes," / "@hermes" / "Hermes:" no começo da frase chama o Hermes. Depois de "hermes" não pode vir letra, com acento
+# inclusive ("hermesão", "hermesinho" não chamam). Limite aceito: "Hermes caiu" (falando do produto) também chama; o
+# impacto é só uma resposta a mais.
+_CHAMADA_PELO_NOME = re.compile(r"^[ ]*@?hermes(?![^\W\d_])", re.IGNORECASE)
 
 
 def _plataforma(event) -> str:

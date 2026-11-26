@@ -1,0 +1,6 @@
+name: trava-de-saida
+version: "1.0.0"
+description: "Antes de cada ferramenta: mensagem e rotina de cron só para o grupo dos sócios e os sócios (lista do root), cron no máximo de hora em hora, nada de .env/chave/token, e nada de desligar as travas pelo terminal."
+author: "DGC"
+provides_hooks:
+  - pre_tool_call

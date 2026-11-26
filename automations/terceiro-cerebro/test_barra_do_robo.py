@@ -144,3 +144,13 @@ def test_evento_imutavel_nao_quebra():
     e = Congelado(text="papo", source=SimpleNamespace(platform="whatsapp", chat_type="group"), metadata={},
                   raw_message={"isGroup": True, "botIds": [BOT]}, reply_to_is_own_message=False)
     assert barra.ignorar_barra(e) is None
+
+
+@pytest.mark.parametrize("texto", ["hermesão, vem cá", "Hermesinho falou", "hermesé", "HERMESÃO"])
+def test_palavra_maior_com_acento_nao_chama(texto):
+    assert barra.enderecada_ao_hermes(grupo(texto)) is False
+
+
+@pytest.mark.parametrize("texto", ["hermes, ó", "Hermes: e aí", "hermes!", "hermes"])
+def test_nome_seguido_de_pontuacao_chama(texto):
+    assert barra.enderecada_ao_hermes(grupo(texto)) is True
