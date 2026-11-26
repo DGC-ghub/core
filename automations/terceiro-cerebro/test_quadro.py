@@ -278,3 +278,109 @@ def test_sem_arquivo_de_config(tmp_path, monkeypatch, capsys):
     monkeypatch.setenv("CEREBRO_ENV", str(tmp_path / "nao-existe.env"))
     assert quadro.main(["pendencias", "gabriel"]) == 1
     assert "configura" in capsys.readouterr().out
+
+
+# --- rodada de correções: sem stack trace, falha fechada --------------------------------
+def test_erro_inesperado_vira_linha_curta_com_exit_1(cfg, capsys):
+    pc = PaperclipFalso(erro=RuntimeError("segredo ghp_0123456789abcdefABCDEF0123456789abcd"))
+    codigo, saida = rodar(["tarefa", "DGC-1"], pc, cfg, capsys)
+    assert (codigo, saida) == (1, "erro inesperado: RuntimeError\n")
+
+
+def test_cota_nao_gravavel_nao_gera_stack_trace(cfg, tmp_path, capsys):
+    arquivo = tmp_path / "arquivo"
+    arquivo.write_text("x")
+    cfg["COTA_PATH"] = str(arquivo / "cota.json")  # o "diretório" é um arquivo comum
+    codigo, saida = rodar(["enviei", "gabriel"], PaperclipFalso(), cfg, capsys)
+    assert codigo == 1
+    assert saida.startswith("erro inesperado: ")
+    assert "Traceback" not in saida
+
+
+def test_painel_com_bytes_invalidos_conta_como_vazio(cfg, tmp_path, capsys):
+    (tmp_path / "PAINEL.md").write_bytes(b"\xff\xfe## Precisa do Gabriel\n\x80")
+    assert rodar(["pendencias", "gabriel"], PaperclipFalso(), cfg, capsys) == (0, "nada pendente pro gabriel\n")
+
+
+def test_env_com_bytes_invalidos_vira_erro_de_configuracao(tmp_path, monkeypatch, capsys):
+    arq = tmp_path / "cerebro.env"
+    arq.write_bytes(b"\xff\xfe=\x80")
+    monkeypatch.setenv("CEREBRO_ENV", str(arq))
+    assert quadro.main(["pendencias", "gabriel"]) == 1
+    assert "configura" in capsys.readouterr().out
+
+
+def test_issues_none_conta_como_lista_vazia(cfg, capsys):
+    class SemLista(PaperclipFalso):
+        def issues(self, status):
+            return None
+
+    assert rodar(["pendencias", "gabriel"], SemLista(), cfg, capsys) == (0, "nada pendente pro gabriel\n")
+
+
+@pytest.mark.parametrize("erro", [QuadroForaDoAr("x"), QuadroRecusou(400, "x"), RuntimeError("x")])
+def test_aprovar_com_comentario_falho_sai_com_4(cfg, capsys, erro):
+    class ComentarioFalha(PaperclipFalso):
+        def comentar(self, issue_id, texto):
+            raise erro
+
+    pc = ComentarioFalha()
+    codigo, saida = rodar(["aprovar", "a", "DGC-1", "--socio", "gabriel"], pc, cfg, capsys)
+    assert (codigo, saida) == (4, "aprovado, mas o comentário falhou\n")
+    assert ("aprovar", "a") in pc.chamadas
+
+
+def test_aceitar_com_comentario_falho_sai_com_4(cfg, capsys):
+    class ComentarioFalha(PaperclipFalso):
+        def comentar(self, issue_id, texto):
+            raise QuadroForaDoAr("caiu")
+
+    pc = ComentarioFalha()
+    codigo, saida = rodar(["aceitar", "DGC-1", "i1", "--socio", "danilo"], pc, cfg, capsys)
+    assert (codigo, saida) == (4, "aceito, mas o comentário falhou\n")
+
+
+@pytest.mark.parametrize("socios", [None, "", " , "])
+def test_sem_socios_configurados_falha_fechada(cfg, capsys, socios):
+    if socios is None:
+        del cfg["SOCIOS"]
+    else:
+        cfg["SOCIOS"] = socios
+    for argv in (["cota", "gabriel"], ["enviei", "gabriel"], ["pendencias", "gabriel"],
+                 ["aprovar", "a", "DGC-1", "--socio", "gabriel"]):
+        pc = PaperclipFalso()
+        codigo, saida = rodar(argv, pc, cfg, capsys)
+        assert (codigo, saida) == (1, "falta SOCIOS no cerebro.env\n")
+        assert pc.chamadas == []
+
+
+def test_pendencias_pula_tarefa_recusada_e_conta(cfg, capsys):
+    class UmaRecusa(PaperclipFalso):
+        def comentarios(self, issue_id, limite=5):
+            if issue_id == "DGC-1":
+                raise QuadroRecusou(404, "sumiu")
+            return super().comentarios(issue_id, limite)
+
+        def interacoes(self, issue_id):
+            if issue_id == "DGC-2":
+                raise QuadroRecusou(403, "proibido")
+            return super().interacoes(issue_id)
+
+    pc = UmaRecusa(
+        issues={"blocked": [issue("DGC-1"), issue("DGC-3", "Boa")], "todo": [issue("DGC-2", "x", "todo")]},
+        comentarios={"DGC-3": [{"body": "esperando o Gabriel", "createdAt": "2026-11-23T15:00:00Z"}]},
+    )
+    codigo, saida = rodar(["pendencias", "gabriel"], pc, cfg, capsys)
+    assert codigo == 0
+    linhas = saida.splitlines()
+    assert linhas[0].startswith("DGC-3 · bloqueada")
+    assert linhas[-1] == "(2 tarefas não lidas)"
+
+
+def test_pendencias_5xx_numa_tarefa_ainda_aborta(cfg, capsys):
+    class Cai(PaperclipFalso):
+        def comentarios(self, issue_id, limite=5):
+            raise QuadroForaDoAr("caiu")
+
+    codigo, saida = rodar(["pendencias", "gabriel"], Cai(issues={"blocked": [issue()]}), cfg, capsys)
+    assert (codigo, saida) == (2, "quadro fora do ar\n")

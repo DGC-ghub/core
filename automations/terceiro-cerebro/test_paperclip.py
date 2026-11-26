@@ -172,3 +172,11 @@ def test_token_nunca_aparece_na_excecao(erro):
         cliente(Abrir(erro=erro)).issues(["blocked"])
     assert TOKEN not in str(e.value)
     assert TOKEN not in repr(e.value)
+
+
+def test_url_sem_esquema_vira_recusa_e_nao_stack_trace():
+    pc = Paperclip("paperclip.local", TOKEN, EMPRESA, abrir=Abrir([]))
+    with pytest.raises(QuadroRecusou) as e:
+        pc.issues(["blocked"])
+    assert "url inválida" in str(e.value)
+    assert TOKEN not in str(e.value)

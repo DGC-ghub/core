@@ -115,7 +115,10 @@ class Paperclip:
         if corpo is not None:
             dados = json.dumps(corpo).encode()
             cabecalhos["Content-Type"] = "application/json"
-        req = urllib.request.Request(f"{self._base}/api{caminho}", data=dados, headers=cabecalhos, method=metodo)
+        try:
+            req = urllib.request.Request(f"{self._base}/api{caminho}", data=dados, headers=cabecalhos, method=metodo)
+        except ValueError:  # endereço sem esquema (http://) ou malformado: erro de configuração, não de rede
+            raise QuadroRecusou(0, "url inválida") from None
         try:
             with self._abrir(req, timeout=TEMPO_LIMITE) as resp:
                 bruto = resp.read()

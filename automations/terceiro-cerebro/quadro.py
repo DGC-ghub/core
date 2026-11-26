@@ -16,7 +16,7 @@ Subcomandos:
   quadro e-comando "<texto>"                         "sim" se o texto começa com "/", senão "nao"
 
 Códigos de saída: 0 ok; 1 configuração ou sócio inválido; 2 quadro fora do ar (ou uso errado);
-3 quadro recusou o pedido.
+3 quadro recusou o pedido; 4 aprovou/aceitou mas o comentário falhou (não repetir a ação).
 
 Configuração: ~/.config/dgc-cerebro/cerebro.env (ou o caminho em CEREBRO_ENV), linhas CHAVE=VALOR:
   PAPERCLIP_URL, PAPERCLIP_TOKEN, PAPERCLIP_COMPANY, PAINEL_PATH, COTA_PATH, SOCIOS=nome:telefone,nome:telefone
@@ -31,7 +31,6 @@ from pathlib import Path
 from cota import FUSO, Cota
 from mascarar import mascarar
 from paperclip import Paperclip, QuadroForaDoAr, QuadroRecusou
-from pendencias import SOCIOS as SOCIOS_PADRAO
 from pendencias import pendencias_do_socio
 
 ENV_PADRAO = Path("~/.config/dgc-cerebro/cerebro.env")
@@ -65,19 +64,21 @@ def _carregar_config() -> dict:
     caminho = Path(os.environ.get("CEREBRO_ENV") or ENV_PADRAO).expanduser()
     try:
         return ler_env(caminho)
-    except OSError:
+    except (OSError, ValueError):  # ValueError cobre UnicodeDecodeError
         raise ErroDeUso("quadro sem configuração: arquivo cerebro.env não encontrado") from None
 
 
 def _nomes_dos_socios(config: dict) -> list[str]:
     bruto = config.get("SOCIOS", "")
     nomes = [item.partition(":")[0].strip().lower() for item in bruto.split(",") if item.strip()]
-    return nomes or list(SOCIOS_PADRAO)
+    return nomes
 
 
 def _socio(config: dict, nome: str) -> str:
     nome = nome.strip().lower()
     validos = _nomes_dos_socios(config)
+    if not validos:  # falha fechada: sem lista de sócios configurada, nenhum nome vale
+        raise ErroDeUso("falta SOCIOS no cerebro.env")
     if nome not in validos:
         raise ErroDeUso(f"sócio desconhecido: {mascarar(nome)[:40]} (use: {', '.join(validos)})")
     return nome
@@ -100,7 +101,7 @@ def _ler_painel(config: dict) -> str:
         return ""
     try:
         return Path(caminho).expanduser().read_text(encoding="utf-8")
-    except OSError:
+    except (OSError, ValueError):
         return ""
 
 
@@ -136,19 +137,26 @@ def _linha_pendencia(p) -> str:
 
 def _cmd_pendencias(args, config, pc, agora) -> int:
     socio = _socio(config, args.socio)
-    bloqueadas = [
-        (i, pc.comentarios(i["identifier"], limite=1)) for i in pc.issues(["blocked"])
-    ]
+    nao_lidas = set()  # tarefas que o quadro recusou ler (4xx); rede e 5xx continuam abortando tudo
+    bloqueadas = []
+    for i in pc.issues(["blocked"]) or []:
+        try:
+            bloqueadas.append((i, pc.comentarios(i["identifier"], limite=1) or []))
+        except QuadroRecusou:
+            nao_lidas.add(i["identifier"])
     cartoes = []
-    for i in pc.issues(ESTADOS_COM_CARTAO):
-        for c in pc.interacoes(i["identifier"]):
-            if c.get("status") == "pending":
-                cartoes.append((i, c))
+    for i in pc.issues(ESTADOS_COM_CARTAO) or []:
+        try:
+            abertos = [c for c in pc.interacoes(i["identifier"]) or [] if c.get("status") == "pending"]
+        except QuadroRecusou:
+            nao_lidas.add(i["identifier"])
+            continue
+        cartoes.extend((i, c) for c in abertos)
     achadas = pendencias_do_socio(socio, bloqueadas, cartoes, _ler_painel(config))
-    if not achadas:
-        _saida(f"nada pendente pro {socio}")
-    else:
-        _saida("\n".join(_linha_pendencia(p) for p in achadas))
+    linhas = [_linha_pendencia(p) for p in achadas] or [f"nada pendente pro {socio}"]
+    if nao_lidas:
+        linhas.append(f"({len(nao_lidas)} tarefas não lidas)")
+    _saida("\n".join(linhas))
     return 0
 
 
@@ -188,20 +196,27 @@ def _registrar_quem_aprovou(pc, ident, socio, agora) -> None:
     pc.comentar(ident, f"aprovado pelo {socio.capitalize()} via WhatsApp, em {quando}")
 
 
+def _comentar_aprovacao(pc, ident, socio, agora, feito: str) -> int:
+    """A ação já aconteceu; se só o comentário falhar, avisa com saída 4 para o agente NÃO repetir a ação."""
+    try:
+        _registrar_quem_aprovou(pc, ident, socio, agora)
+    except Exception:
+        _saida(f"{feito}, mas o comentário falhou")
+        return 4
+    _saida("ok")
+    return 0
+
+
 def _cmd_aprovar(args, config, pc, agora) -> int:
     socio = _socio(config, args.socio)
     pc.aprovar(args.approval)
-    _registrar_quem_aprovou(pc, args.ident, socio, agora)
-    _saida("ok")
-    return 0
+    return _comentar_aprovacao(pc, args.ident, socio, agora, "aprovado")
 
 
 def _cmd_aceitar(args, config, pc, agora) -> int:
     socio = _socio(config, args.socio)
     pc.aceitar_interacao(args.ident, args.interacao)
-    _registrar_quem_aprovou(pc, args.ident, socio, agora)
-    _saida("ok")
-    return 0
+    return _comentar_aprovacao(pc, args.ident, socio, agora, "aceito")
 
 
 def _cmd_cota(args, config, pc, agora) -> int:
@@ -283,6 +298,9 @@ def main(argv: list[str], pc: Paperclip | None = None, config: dict | None = Non
     except QuadroRecusou as e:
         _saida(f"quadro recusou: {_detalhe_da_recusa(e)}")
         return 3
+    except Exception as e:  # último recurso: o agente nunca vê stack trace
+        _saida(f"erro inesperado: {type(e).__name__}")
+        return 1
 
 
 if __name__ == "__main__":

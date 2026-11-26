@@ -53,7 +53,8 @@ Toda saída é texto curto e já mascarado.
 | `quadro enviei <socio>` | reserva uma mensagem de forma atômica: `pode` (registrou) ou `esgotada` (não registrou) |
 | `quadro e-comando "<texto>"` | `sim` se o texto começa com `/`, senão `nao` |
 
-`<socio>` precisa ser um dos nomes em `SOCIOS`.
+`<socio>` precisa ser um dos nomes em `SOCIOS`; sem `SOCIOS` configurado nenhum nome vale (falha fechada).
+Em `pendencias`, uma tarefa que o quadro recusa ler (4xx) é pulada e a última linha avisa `(<n> tarefas não lidas)`.
 
 ### Regra da barra (cota)
 
@@ -66,9 +67,10 @@ a um comando do sócio (texto que começa com `/`, veja `quadro e-comando`) não
 | Código | Quando | Saída |
 |---|---|---|
 | 0 | deu certo (inclusive `esgotada`) | |
-| 1 | falta configuração ou sócio desconhecido | mensagem curta |
+| 1 | falta configuração (inclui `SOCIOS` vazio), sócio desconhecido ou erro inesperado | mensagem curta (`erro inesperado: <Tipo>`) |
 | 2 | quadro fora do ar (ou uso errado) | `quadro fora do ar` (ou uma linha `uso: ...`) |
 | 3 | quadro recusou o pedido (4xx) | `quadro recusou: <detalhe>` |
+| 4 | `aprovar`/`aceitar` funcionou, mas o comentário de registro falhou | `aprovado, mas o comentário falhou` (ou `aceito, ...`); não repita a ação |
 
 Nunca aparece stack trace.
 
