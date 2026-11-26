@@ -1,11 +1,12 @@
 [Unit]
-Description=Cópias do terceiro cérebro todo dia às 03:00 de Brasília
+Description=Cópias do terceiro cérebro a cada 3 horas
 
 [Timer]
-# A VM está em UTC: 06:00 UTC = 03:00 America/Sao_Paulo (sem horário de verão desde 2019).
-OnCalendar=*-*-* 06:00:00 UTC
+# A VM está em UTC: 00, 03, 06... UTC = 21, 00, 03... de Brasília. Fresco o bastante para o PAINEL.md e ainda leve
+# (repositórios só puxam o que mudou; documentos são um rsync).
+OnCalendar=*-*-* 00/3:00:00 UTC
 Persistent=true
-RandomizedDelaySec=120
+RandomizedDelaySec=300
 
 [Install]
 WantedBy=timers.target
