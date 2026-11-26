@@ -8,7 +8,7 @@ import pytest
 from paperclip import Paperclip, QuadroForaDoAr, QuadroRecusou
 
 TOKEN = "pcp_board_SEGREDINHO_123"
-EMPRESA = "1e670459-aaaa-4bbb-8ccc-123456789abc"
+EMPRESA = "00000000-0000-4000-8000-000000000000"
 GHP = "ghp_0123456789abcdefABCDEF0123456789abcd"
 
 
