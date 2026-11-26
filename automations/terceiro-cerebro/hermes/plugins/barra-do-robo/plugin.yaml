@@ -1,0 +1,6 @@
+name: barra-do-robo
+version: "1.1.0"
+description: "No WhatsApp, o Hermes ignora texto que começa com '/' (comando do robô de vendas) e mensagens do próprio dono do aparelho; no grupo, marca reply_expected=False nas mensagens que não chamam o Hermes, para o [SILENT] valer."
+author: "DGC"
+provides_hooks:
+  - pre_gateway_dispatch

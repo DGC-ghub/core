@@ -1,0 +1,10 @@
+[Unit]
+Description=Atualiza as cópias de leitura (repositórios e documentos) do terceiro cérebro da DGC
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/bin/atualizar-copias-cerebro.sh
+Nice=10
+IOSchedulingClass=idle
+MemoryMax=600M
