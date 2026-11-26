@@ -110,3 +110,12 @@ def test_reservar_concorrente_deixa_passar_exatamente_3(tmp_path):
     assert sum(resultados) == 3
     assert not Cota(caminho).pode_enviar("gabriel", t)
     assert sorted(p.name for p in tmp_path.iterdir()) == ["c.json", "c.json.lock"]
+
+
+def test_intervir_com_registro_estranho_nao_trava(tmp_path):
+    caminho = tmp_path / "cota.json"
+    caminho.write_text('{"_intervencao": {"ultima": "ontem"}, "grupo": {"dia": "x", "n": 0}}', encoding="utf-8")
+    cota = Cota(caminho)
+    agora = datetime(2026, 11, 26, 10, 0, tzinfo=BRT)
+    assert cota.intervir("grupo", agora) == "pode"
+    assert cota.intervir("grupo", agora) == "espera"

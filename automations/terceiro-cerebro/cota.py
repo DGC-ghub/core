@@ -1,14 +1,15 @@
 """Teto de mensagens espontâneas por sócio: no máximo 3 por dia, entre 08:00 e 21:00 (Brasília).
 
-Estado em JSON: {"<socio>": {"dia": "aaaa-mm-dd", "n": int}}. Arquivo ausente ou
-corrompido vale como estado vazio (o teto recomeça, em vez de travar o robô).
+Estado em JSON: {"<socio>": {"dia": "aaaa-mm-dd", "n": int}, "_intervencao": {"ultima": "<iso>"}}.
+"_intervencao" guarda só a hora da última intervenção espontânea no grupo (no máximo 1 por hora), à parte da
+contagem do dia. Arquivo ausente ou corrompido vale como estado vazio (o teto recomeça, em vez de travar o robô).
 """
 import fcntl
 import json
 import os
 import tempfile
 from contextlib import contextmanager
-from datetime import datetime, time
+from datetime import datetime, time, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -16,6 +17,8 @@ FUSO = ZoneInfo("America/Sao_Paulo")
 TETO_POR_DIA = 3
 ABRE = time(8, 0)
 FECHA = time(21, 0)  # 21:00 já está fora
+INTERVALO_DA_INTERVENCAO = timedelta(minutes=60)
+_INTERVENCAO = "_intervencao"  # chave do estado; começa com "_" para nunca colidir com nome de sócio
 
 
 class Cota:
@@ -59,10 +62,15 @@ class Cota:
         dia = local.date().isoformat()
         return self._enviadas_no_dia(self._ler(), socio, dia) < TETO_POR_DIA
 
-    def _gravar_contagem(self, socio: str, agora: datetime) -> None:
+    def _gravar_contagem(self, socio: str, agora: datetime, intervencao: bool = False) -> None:
         dia = agora.astimezone(FUSO).date().isoformat()
         estado = self._ler()
         estado[socio] = {"dia": dia, "n": self._enviadas_no_dia(estado, socio, dia) + 1}
+        if intervencao:
+            estado[_INTERVENCAO] = {"ultima": agora.isoformat()}
+        self._gravar(estado)
+
+    def _gravar(self, estado: dict) -> None:
         fd, temporario = tempfile.mkstemp(
             dir=self._caminho.parent, prefix=self._caminho.name + ".", suffix=".tmp"
         )
@@ -95,3 +103,26 @@ class Cota:
                 return False
             self._gravar_contagem(socio, agora)
             return True
+
+    def _ultima_intervencao(self) -> datetime | None:
+        registro = self._ler().get(_INTERVENCAO)
+        try:
+            quando = datetime.fromisoformat(registro["ultima"])
+        except (TypeError, KeyError, ValueError):
+            return None
+        return quando if quando.tzinfo else None
+
+    def intervir(self, chave: str, agora: datetime) -> str:
+        """Reserva uma intervenção espontânea: "pode" (registrou), "espera" (menos de 60 min da última) ou "esgotada".
+
+        Conta no teto do dia de `chave` (o grupo) e guarda a hora, tudo sob a mesma trava. "espera" e "esgotada" não
+        registram nada.
+        """
+        with self._trava():
+            ultima = self._ultima_intervencao()
+            if ultima is not None and timedelta(0) <= agora - ultima < INTERVALO_DA_INTERVENCAO:
+                return "espera"
+            if not self._pode(chave, agora):
+                return "esgotada"
+            self._gravar_contagem(chave, agora, intervencao=True)
+            return "pode"

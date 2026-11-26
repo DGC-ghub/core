@@ -113,18 +113,47 @@ def test_aprovar_comenta_quem_aprovou(cfg, capsys):
     assert codigo == 0
     assert pc.chamadas == [
         ("aprovar", "apr-1"),
-        ("comentar", "DGC-370", "aprovado pelo Gabriel via WhatsApp, em 26/11/2026 10:30"),
+        ("comentar", "DGC-370", "[Hermes via WhatsApp] aprovado pelo Gabriel via WhatsApp, em 26/11/2026 10:30"),
     ]
+
+
+def cartao(ident="int-9", kind="request_confirmation", status="pending"):
+    return {"id": ident, "kind": kind, "status": status, "title": "Pode seguir?"}
 
 
 def test_aceitar_comenta_quem_aprovou(cfg, capsys):
-    pc = PaperclipFalso()
+    pc = PaperclipFalso(interacoes={"DGC-370": [cartao()]})
     codigo, _ = rodar(["aceitar", "DGC-370", "int-9", "--socio", "danilo"], pc, cfg, capsys)
     assert codigo == 0
     assert pc.chamadas == [
+        ("interacoes", "DGC-370"),
         ("aceitar_interacao", "DGC-370", "int-9"),
-        ("comentar", "DGC-370", "aprovado pelo Danilo via WhatsApp, em 26/11/2026 10:30"),
+        ("comentar", "DGC-370", "[Hermes via WhatsApp] aprovado pelo Danilo via WhatsApp, em 26/11/2026 10:30"),
     ]
+
+
+def test_aceitar_cartao_de_checkbox_vale(cfg, capsys):
+    pc = PaperclipFalso(interacoes={"DGC-370": [cartao(kind="request_checkbox_confirmation")]})
+    codigo, saida = rodar(["aceitar", "DGC-370", "int-9", "--socio", "gabriel"], pc, cfg, capsys)
+    assert (codigo, saida) == (0, "ok\n")
+    assert ("aceitar_interacao", "DGC-370", "int-9") in pc.chamadas
+
+
+@pytest.mark.parametrize("kind", ["suggest_tasks", "ask_user_questions", "request_item_verdicts", "connection_intent", None])
+def test_aceitar_recusa_cartao_que_nao_e_um_sim(cfg, capsys, kind):
+    pc = PaperclipFalso(interacoes={"DGC-370": [cartao(kind=kind)]})
+    codigo, saida = rodar(["aceitar", "DGC-370", "int-9", "--socio", "gabriel"], pc, cfg, capsys)
+    assert codigo == 3
+    assert saida.startswith(f"cartão do tipo {kind or '?'}:")
+    assert [c[0] for c in pc.chamadas] == ["interacoes"]  # não aceitou nem comentou
+
+
+def test_aceitar_cartao_que_nao_existe_na_tarefa(cfg, capsys):
+    pc = PaperclipFalso(interacoes={"DGC-370": [cartao(ident="outro")]})
+    codigo, saida = rodar(["aceitar", "DGC-370", "int-9", "--socio", "gabriel"], pc, cfg, capsys)
+    assert codigo == 3
+    assert "não está na DGC-370" in saida
+    assert [c[0] for c in pc.chamadas] == ["interacoes"]
 
 
 def test_aprovar_usa_horario_de_brasilia(cfg, capsys):
@@ -159,7 +188,7 @@ def test_comentar_e_status(cfg, capsys):
     pc = PaperclipFalso()
     assert rodar(["comentar", "DGC-5", "feito a B2"], pc, cfg, capsys) == (0, "ok\n")
     assert rodar(["status", "DGC-5", "done"], pc, cfg, capsys) == (0, "ok\n")
-    assert pc.chamadas == [("comentar", "DGC-5", "feito a B2"), ("mudar_status", "DGC-5", "done")]
+    assert pc.chamadas == [("comentar", "DGC-5", "[Hermes via WhatsApp] feito a B2"), ("mudar_status", "DGC-5", "done")]
 
 
 # --- cota ---------------------------------------------------------------------------
@@ -356,7 +385,7 @@ def test_aceitar_com_comentario_falho_sai_com_4(cfg, capsys):
         def comentar(self, issue_id, texto):
             raise QuadroForaDoAr("caiu")
 
-    pc = ComentarioFalha()
+    pc = ComentarioFalha(interacoes={"DGC-1": [cartao(ident="i1")]})
     codigo, saida = rodar(["aceitar", "DGC-1", "i1", "--socio", "danilo"], pc, cfg, capsys)
     assert (codigo, saida) == (4, "aceito, mas o comentário falhou\n")
 
@@ -405,3 +434,49 @@ def test_pendencias_5xx_numa_tarefa_ainda_aborta(cfg, capsys):
 
     codigo, saida = rodar(["pendencias", "gabriel"], Cai(issues={"blocked": [issue()]}), cfg, capsys)
     assert (codigo, saida) == (2, "quadro fora do ar\n")
+
+
+# --- intervenção espontânea no grupo (no máximo 1 por hora, dentro do teto de 3/dia) --------------
+def test_intervir_uma_por_hora_e_conta_no_teto_do_grupo(cfg, capsys):
+    pc = PaperclipFalso()
+    assert quadro.main(["intervir"], pc=pc, config=cfg, agora=AGORA) == 0
+    assert capsys.readouterr().out == "pode\n"
+    meia_hora = AGORA.replace(minute=59)  # 10:59, 29 min depois
+    quadro.main(["intervir"], pc=pc, config=cfg, agora=meia_hora)
+    assert capsys.readouterr().out == "espera\n"
+    uma_hora = AGORA.replace(hour=11)  # 11:30, 60 min depois
+    quadro.main(["intervir"], pc=pc, config=cfg, agora=uma_hora)
+    assert capsys.readouterr().out == "pode\n"
+    # duas intervenções já gastaram 2 das 3 do grupo; a rodada (enviei grupo) usa a última
+    assert rodar(["enviei", "grupo"], pc, cfg, capsys) == (0, "pode\n")
+    assert rodar(["cota", "grupo"], pc, cfg, capsys) == (0, "esgotada\n")
+    duas_horas = AGORA.replace(hour=13)
+    quadro.main(["intervir"], pc=pc, config=cfg, agora=duas_horas)
+    assert capsys.readouterr().out == "esgotada\n"
+    assert pc.chamadas == []
+
+
+def test_rodada_nao_bloqueia_a_intervencao_pela_hora(cfg, capsys):
+    pc = PaperclipFalso()
+    assert rodar(["enviei", "grupo"], pc, cfg, capsys) == (0, "pode\n")
+    assert rodar(["intervir"], pc, cfg, capsys) == (0, "pode\n")  # a hora é só das intervenções
+
+
+def test_intervir_espera_nao_registra(cfg, capsys):
+    pc = PaperclipFalso()
+    rodar(["intervir"], pc, cfg, capsys)
+    for _ in range(5):
+        assert rodar(["intervir"], pc, cfg, capsys) == (0, "espera\n")
+    assert rodar(["enviei", "grupo"], pc, cfg, capsys) == (0, "pode\n")  # 2 de 3: as "espera" não gastaram
+
+
+def test_intervir_fora_da_janela(cfg, capsys):
+    noite = AGORA.replace(hour=22)
+    quadro.main(["intervir"], pc=PaperclipFalso(), config=cfg, agora=noite)
+    assert capsys.readouterr().out == "esgotada\n"
+
+
+def test_intervir_sem_socios_falha_fechada(cfg, capsys):
+    cfg["SOCIOS"] = ""
+    codigo, saida = rodar(["intervir"], PaperclipFalso(), cfg, capsys)
+    assert codigo == 1 and "falta SOCIOS" in saida

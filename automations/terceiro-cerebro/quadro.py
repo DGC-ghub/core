@@ -7,18 +7,21 @@ Pensada para o terminal do agente: saída em texto curto, simples e já mascarad
 Subcomandos:
   quadro pendencias <socio>                          o que espera esse sócio, uma linha por item
   quadro tarefa <DGC-n>                              título, status, 3 últimos comentários, cartões abertos
-  quadro comentar <DGC-n> <texto>
+  quadro comentar <DGC-n> <texto>                    comenta, sempre com a marca "[Hermes via WhatsApp] " na frente
   quadro status <DGC-n> <status>
-  quadro aceitar <DGC-n> <interacao> --socio <nome>  aceita o cartão e comenta quem aprovou
+  quadro aceitar <DGC-n> <interacao> --socio <nome>  aceita um cartão de confirmação e comenta quem aprovou
   quadro aprovar <approval> <DGC-n> --socio <nome>   aprova e comenta quem aprovou
   quadro cota <socio|grupo>                          "pode" ou "esgotada" (só leitura)
   quadro enviei <socio|grupo>                        reserva uma mensagem: "pode" (registrou) ou "esgotada"
+  quadro intervir                                    reserva uma intervenção espontânea no grupo: "pode",
+                                                     "espera" (menos de 60 min da última) ou "esgotada"
   quadro e-comando "<texto>"                         "sim" se o texto começa com "/", senão "nao"
 
 Códigos de saída: 0 ok; 1 configuração ou sócio inválido; 2 quadro fora do ar (ou uso errado);
-3 quadro recusou o pedido; 4 aprovou/aceitou mas o comentário falhou (não repetir a ação).
+3 quadro recusou o pedido (ou o cartão não é de confirmação simples); 4 aprovou/aceitou mas o comentário
+falhou (não repetir a ação).
 
-Configuração: ~/.config/dgc-cerebro/cerebro.env (ou o caminho em CEREBRO_ENV), linhas CHAVE=VALOR:
+Configuração: o arquivo em CEREBRO_ENV (padrão ~/.config/dgc-cerebro/cerebro.env), linhas CHAVE=VALOR:
   PAPERCLIP_URL, PAPERCLIP_TOKEN, PAPERCLIP_COMPANY, PAINEL_PATH, COTA_PATH, SOCIOS=nome:telefone,nome:telefone
 Os telefones nunca são impressos.
 """
@@ -37,6 +40,9 @@ ENV_PADRAO = Path("~/.config/dgc-cerebro/cerebro.env")
 COTA_PADRAO = Path("~/.config/dgc-cerebro/cota.json")
 ESTADOS_COM_CARTAO = ["blocked", "in_review", "in_progress", "todo"]
 DETALHE_NA_LINHA = 160
+MARCA = "[Hermes via WhatsApp] "  # todo comentário que a CLI posta sai com esta marca: a chave é do dono, o texto não
+# Cartões que um "sim" do sócio resolve sem escolher nada (o de checkbox fica com as opções que já vêm marcadas).
+CARTOES_DE_SIM = ("request_confirmation", "request_checkbox_confirmation")
 COMENTARIO_NA_TAREFA = 300
 
 
@@ -191,8 +197,12 @@ def _cmd_tarefa(args, config, pc, agora) -> int:
     return 0
 
 
+def _comentar(pc, ident, texto) -> None:
+    pc.comentar(ident, MARCA + texto)
+
+
 def _cmd_comentar(args, config, pc, agora) -> int:
-    pc.comentar(args.ident, args.texto)
+    _comentar(pc, args.ident, args.texto)
     _saida("ok")
     return 0
 
@@ -205,7 +215,7 @@ def _cmd_status(args, config, pc, agora) -> int:
 
 def _registrar_quem_aprovou(pc, ident, socio, agora) -> None:
     quando = agora.astimezone(FUSO).strftime("%d/%m/%Y %H:%M")
-    pc.comentar(ident, f"aprovado pelo {socio.capitalize()} via WhatsApp, em {quando}")
+    _comentar(pc, ident, f"aprovado pelo {socio.capitalize()} via WhatsApp, em {quando}")
 
 
 def _comentar_aprovacao(pc, ident, socio, agora, feito: str) -> int:
@@ -227,6 +237,14 @@ def _cmd_aprovar(args, config, pc, agora) -> int:
 
 def _cmd_aceitar(args, config, pc, agora) -> int:
     socio = _socio(config, args.socio)
+    cartao = next((c for c in pc.interacoes(args.ident) or [] if str(c.get("id")) == args.interacao), None)
+    if cartao is None:
+        _saida(f"quadro recusou: cartão {mascarar(args.interacao)[:60]} não está na {args.ident}")
+        return 3
+    tipo = str(cartao.get("kind") or "?")
+    if tipo not in CARTOES_DE_SIM:
+        _saida(f"cartão do tipo {tipo[:40]}: não dá para aceitar com um sim; o sócio responde no quadro")
+        return 3
     pc.aceitar_interacao(args.ident, args.interacao)
     return _comentar_aprovacao(pc, args.ident, socio, agora, "aceito")
 
@@ -243,18 +261,24 @@ def _cmd_enviei(args, config, pc, agora) -> int:
     return 0
 
 
+def _cmd_intervir(args, config, pc, agora) -> int:
+    _chave_de_cota(config, GRUPO)  # exige SOCIOS configurado (falha fechada)
+    _saida(_cota(config).intervir(GRUPO, agora))
+    return 0
+
+
 def _cmd_e_comando(args, config, pc, agora) -> int:
     _saida("sim" if e_comando(args.texto) else "nao")
     return 0
 
 
 # Quais subcomandos não precisam falar com o quadro (nem ter token configurado)
-_SEM_REDE = {"cota", "enviei", "e-comando"}
+_SEM_REDE = {"cota", "enviei", "intervir", "e-comando"}
 
 
 class _Parser(argparse.ArgumentParser):
     def error(self, message):
-        raise ErroDeUso(f"uso: quadro <pendencias|tarefa|comentar|status|aceitar|aprovar|cota|enviei|e-comando> ... ({message})")
+        raise ErroDeUso(f"uso: quadro <pendencias|tarefa|comentar|status|aceitar|aprovar|cota|enviei|intervir|e-comando> ... ({message})")
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -277,6 +301,7 @@ def _parser() -> argparse.ArgumentParser:
     novo("aprovar", _cmd_aprovar, "approval", "ident", socio=True)
     novo("cota", _cmd_cota, "socio")
     novo("enviei", _cmd_enviei, "socio")
+    novo("intervir", _cmd_intervir)
     novo("e-comando", _cmd_e_comando, "texto")
     return p
 
