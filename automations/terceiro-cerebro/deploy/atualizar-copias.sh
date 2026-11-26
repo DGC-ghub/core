@@ -28,6 +28,13 @@ SPARSE=('/*' '!.env*' '!*.env' '!*.pem' '!*.key' '!node_modules/' '!*.db' '!*.sq
 # O acesso ao GitHub é o que o dgc já tem (credential.helper store, renovado pela própria VM). A chave SSH
 # ~/.ssh/id_github_trabalhadora não tem mais acesso. Nenhum segredo é gravado nas cópias: a URL guardada no clone não tem token.
 export GIT_TERMINAL_PROMPT=0
+# Frente de trade (day-trade-app, dgc-ai-desk): Mesa BTC e Laboratório são simulação e podem ser lidos; cofre, chaves e
+# saldos reais não. Qualquer arquivo ou pasta com esses nomes sai do checkout (em 26/11 não havia nenhum, é preventivo).
+SPARSE_TRADE=('!*cofre*' '!*vault*' '!*saldo*' '!*carteira*' '!*wallet*')
+sparse_do_repo() {  # imprime um padrão por linha: o filtro geral e, nos repos de trade, o filtro do cofre
+  printf '%s\n' "${SPARSE[@]}"
+  case "$1" in day-trade-app|dgc-ai-desk) printf '%s\n' "${SPARSE_TRADE[@]}" ;; esac
+}
 erros=0
 log() { printf '%s %s\n' "$(date -u +%FT%TZ)" "$*"; }
 
@@ -42,11 +49,13 @@ for nome in "${REPOS[@]}"; do
       log "ERRO: clone de $nome falhou"; erros=$((erros+1)); rm -rf "$pasta"; continue
     fi
     git -C "$pasta" config core.fileMode false
-    git -C "$pasta" sparse-checkout set --no-cone "${SPARSE[@]}"
+    mapfile -t padroes < <(sparse_do_repo "$nome")
+    git -C "$pasta" sparse-checkout set --no-cone "${padroes[@]}"
     git -C "$pasta" checkout --quiet || { log "ERRO: checkout de $nome falhou"; erros=$((erros+1)); }
   else
     git -C "$pasta" config core.fileMode false
-    git -C "$pasta" sparse-checkout set --no-cone "${SPARSE[@]}" 2>/dev/null
+    mapfile -t padroes < <(sparse_do_repo "$nome")
+    git -C "$pasta" sparse-checkout set --no-cone "${padroes[@]}" 2>/dev/null
     if git -C "$pasta" pull --quiet --ff-only; then
       log "ok $nome"
     else
@@ -74,7 +83,8 @@ for nome in "${REPOS[@]}"; do
     fi
   done < <(grep -rlIE "$PADRAO" --exclude-dir=.git "$pasta" 2>/dev/null)
   if [ "${#extras[@]}" -gt 0 ]; then
-    git -C "$pasta" sparse-checkout set --no-cone "${SPARSE[@]}" "${extras[@]}"
+    mapfile -t padroes < <(sparse_do_repo "$nome")
+    git -C "$pasta" sparse-checkout set --no-cone "${padroes[@]}" "${extras[@]}"
   fi
 done
 

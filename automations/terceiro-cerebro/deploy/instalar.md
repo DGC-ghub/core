@@ -7,7 +7,7 @@ serviço `dgc-cerebro` está instalado mas **desligado**, e nenhum job de cron f
 
 | Peça | Onde | Observação |
 |---|---|---|
-| Usuário | `cerebro` (home `/home/cerebro`, modo 700, `loginctl enable-linger`) | Isolado do `dgc`: o terminal do Hermes não lê os segredos do `dgc`. Teste: `sudo -u cerebro cat /home/dgc/.config/dgc-atendimento/compose.env` dá "Permission denied". |
+| Usuário | `cerebro` (home `/home/cerebro`, modo 700, `loginctl enable-linger`) | Isolado do `dgc`: o terminal do Hermes não lê os segredos do `dgc`. Em 26/11 também foram fechados `/home/pi` (750) e os arquivos do `dgc` em `/tmp` (o-rwx); ver "Isolamento do `cerebro`" abaixo. Teste: `sudo -u cerebro cat /home/dgc/.config/dgc-atendimento/compose.env` dá "Permission denied". |
 | Hermes Agent | `/home/cerebro/.hermes/hermes-agent`, método git, commit `9976f4857b72439d79016354d7b6e1a3ee952e2f` | `hermes --version` → `v0.22.5+1722.g9976f48`. Instalado com o `scripts/install.sh` do próprio repositório (`--commit … --non-interactive --skip-browser --skip-computer-use`). **Não rode `hermes update`** sem ok do dono: ele sai do commit fixado. |
 | Config do Hermes | `~/.hermes/config.yaml` | `model.provider: openai-codex`, `model.default: gpt-6-sol`, `timezone: America/Sao_Paulo`, `terminal.cwd: /home/cerebro/cerebro`, `whatsapp.unauthorized_dm_behavior: ignore`. |
 | `.env` do Hermes | `~/.hermes/.env` (modo 600) | `WHATSAPP_ENABLED=true`, `WHATSAPP_MODE=bot`, `WHATSAPP_ALLOWED_USERS=<numero do Gabriel>`, `WHATSAPP_GROUP_POLICY=pairing` (grupos fechados: não repassa nada de grupo). Danilo entra depois do aceite dele. |
@@ -18,7 +18,7 @@ serviço `dgc-cerebro` está instalado mas **desligado**, e nenhum job de cron f
 | CLI `quadro` | `/home/cerebro/ferramentas/terceiro-cerebro/*.py` + wrapper `/home/cerebro/.local/bin/quadro` | Config em `/home/cerebro/.config/dgc-cerebro/cerebro.env` (modo 600). Estado da cota em `~/.local/state/dgc-cerebro/cota.json`. |
 | Conhecimento | `/srv/cerebro/{repos,docs}` (dono `dgc`, grupo `cerebro`, pastas 750, arquivos 640) | Atualizado por `deploy/atualizar-copias.sh`, instalado em `~dgc/bin/atualizar-copias-cerebro.sh`. |
 | Timer das cópias | `~dgc/.config/systemd/user/cerebro-copias.{service,timer}` (usuário `dgc`) | Todo dia 06:00 UTC = 03:00 de Brasília. Ativo. Rodar à mão: `systemctl --user start cerebro-copias.service`; log: `journalctl --user -u cerebro-copias`. |
-| Serviço | `/home/cerebro/.config/systemd/user/dgc-cerebro.service` | `hermes gateway run --external-supervisor` em primeiro plano, `MemoryMax=1500M`, `Restart=on-failure`, `RestartSec=30`. **Instalado, desabilitado e parado.** |
+| Serviço | `/home/cerebro/.config/systemd/user/dgc-cerebro.service` | Gerado pelo próprio Hermes (`generate_systemd_unit`: `HERMES_SUPERVISED_CHILD=1`, `KillMode=mixed`, `ExecStop`/`ExecStopPost` com limpeza do cgroup, `StartLimitIntervalSec=0`, `RestartPreventExitStatus=78`, `TimeoutStopSec` calculado), mais `WorkingDirectory=%h/cerebro`, `MemoryMax=1500M` e `RestartSec=30`. **Instalado, desabilitado e parado.** |
 
 ### Detalhes das cópias
 
@@ -33,6 +33,24 @@ serviço `dgc-cerebro` está instalado mas **desligado**, e nenhum job de cron f
 - Trava final: arquivo que casa com `sk-ant-|ghp_|github_pat_` sai da cópia (em `docs/`, é apagado; em `repos/`, sai do
   checkout) e, se tiver chave de verdade, o serviço falha e avisa no log.
 - O `cerebro` roda `git` nessas cópias (`safe.directory '*'` no `.gitconfig` dele); `git push` falha de propósito.
+
+### Memória do Hermes (só por instrução)
+
+A memória do Hermes é por perfil, não por pessoa: um `MEMORY.md` e uma busca de sessões (`session_search`) que cobre as conversas
+de todos. Não existe isolamento por sócio. O que foi feito: `memory.user_profile_enabled: false` (desliga o `USER.md`, onde
+cairia o perfil pessoal de cada sócio) e, no SOUL e na skill, a regra de só gravar trabalho na memória, nunca usar
+`session_search` de conversa do outro sócio para assunto pessoal e, de uma conversa para a outra, só passar item de trabalho.
+**Isso é garantido só por instrução (prompt), não por mecanismo.** Se isso virar problema, o caminho é um perfil do Hermes por sócio.
+
+### Isolamento do `cerebro` (o que ele consegue ler na VM)
+
+- Fechado em 26/11: `chmod 750 /home/pi` (era 755; dados antigos do Paperclip de 15/11, `dgc-hub`, projetos) e `chmod -R o-rwx` nos
+  arquivos do `dgc` em `/tmp` (81 mil arquivos de trabalho dos agentes). Nada do `dgc` roda como outro usuário, então os serviços não foram afetados.
+- Ainda legível, de propósito ou fora do alcance: `/srv/cerebro` (as cópias), `/etc` e `/var/lib` do sistema (só arquivos padrão do Ubuntu),
+  os serviços em `127.0.0.1` (Paperclip 3100, Chatwoot, robô: pedem token que o `cerebro` não tem) e o `tailscale status`. O `docker.sock` é do grupo `docker` (o `cerebro` não está).
+- Vazamento que volta: o `dgc` cria arquivos novos em `/tmp` com `umask 022` (legíveis por todos). Se isso importar, reaplicar
+  `sudo find /tmp -mindepth 1 -maxdepth 1 -user dgc -exec chmod -R o-rwx {} +` ou usar `UMask=0027` nas units do `dgc`.
+- Frente de trade: o `atualizar-copias.sh` tira da cópia de `day-trade-app` e `dgc-ai-desk` qualquer arquivo ou pasta com `cofre`, `vault`, `saldo`, `carteira` ou `wallet` no nome (em 26/11 não havia nenhum).
 
 ## Os 3 passos do dono (Gabriel)
 

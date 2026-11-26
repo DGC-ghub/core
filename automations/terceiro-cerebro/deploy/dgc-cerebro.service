@@ -1,19 +1,34 @@
+# Gerado pelo próprio Hermes (hermes_cli.gateway.generate_systemd_unit, commit 9976f48) como unit de usuário,
+# com 4 mudanças: Description, WorkingDirectory=%h/cerebro, MemoryMax=1500M e RestartSec=30 (o padrão é 5).
+# Caminhos absolutos do cerebro viraram %h para o arquivo não carregar o home de ninguém. Não habilitar sem os 3 passos do dono.
 [Unit]
-Description=DGC Cérebro (Hermes Agent, terceiro cérebro da DGC)
+Description=DGC Cérebro (Hermes Agent gateway, terceiro cérebro da DGC)
 After=network-online.target
 Wants=network-online.target
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple
+ExecStart="%h/.hermes/hermes-agent/.hermes/bin/hermes" "gateway" "run"
 WorkingDirectory=%h/cerebro
-Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
-# "gateway run" é o modo em primeiro plano; --external-supervisor faz /restart e atualizações saírem com 75 para o
-# systemd religar (por isso Restart=on-failure).
-ExecStart=%h/.local/bin/hermes gateway run --external-supervisor
-Restart=on-failure
+Environment="PATH=%h/.hermes/hermes-agent/node_modules/.bin:%h/.hermes/tools/node-26.12.1-linux-arm64/bin:%h/.hermes/tools/npm-12.0.2-linux-arm64/bin:%h/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+Environment="HERMES_HOME=%h/.hermes"
+Environment="HERMES_SUPERVISED_CHILD=1"
+Restart=always
 RestartSec=30
+RestartForceExitStatus=75
+SuccessExitStatus=75
+RestartPreventExitStatus=78
+KillMode=mixed
+KillSignal=SIGTERM
+ExecReload=/bin/kill -USR1 $MAINPID
+ExecStop=-"%h/.hermes/hermes-agent/.hermes/bin/hermes" "--run-module" "gateway.systemd_stop_mark"
+ExecStopPost=-"%h/.hermes/hermes-agent/.hermes/bin/hermes" "--run-module" "gateway.cgroup_cleanup"
+TimeoutStopSec=70
 MemoryMax=1500M
-TimeoutStopSec=60
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=default.target
