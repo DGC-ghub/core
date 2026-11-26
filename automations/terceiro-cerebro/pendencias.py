@@ -30,8 +30,8 @@ class Pendencia:
     detalhe: str
 
 
-def _cortar(texto: str, limite: int = TITULO_MAX) -> str:
-    texto = " ".join(texto.split())
+def _cortar(texto, limite: int = TITULO_MAX) -> str:
+    texto = " ".join(str(texto or "").split())
     return texto if len(texto) <= limite else texto[: limite - 1].rstrip() + "…"
 
 
@@ -45,9 +45,9 @@ def _da_bloqueada(socio, issue, comentarios):
             return Pendencia(
                 socio=socio,
                 origem="bloqueada",
-                ref=issue.get("identifier", ""),
-                titulo=_cortar(issue.get("title", "")),
-                desde=ultimo.get("createdAt", ""),
+                ref=issue.get("identifier") or "",
+                titulo=_cortar(issue.get("title") or ""),
+                desde=ultimo.get("createdAt") or "",
                 detalhe=_cortar(corpo, 300),
             )
     return None
@@ -59,9 +59,9 @@ def _do_cartao(socio, issue, cartao):
     return Pendencia(
         socio=socio,
         origem="cartao",
-        ref=issue.get("identifier", ""),
-        titulo=_cortar(cartao.get("title") or issue.get("title", "")),
-        desde=cartao.get("createdAt", ""),
+        ref=issue.get("identifier") or "",
+        titulo=_cortar(cartao.get("title") or issue.get("title") or ""),
+        desde=cartao.get("createdAt") or "",
         detalhe=_cortar(cartao.get("summary") or "", 300),
     )
 
@@ -97,7 +97,7 @@ def _chave_de_ordem(p: Pendencia):
         if quando.tzinfo is None:
             quando = quando.replace(tzinfo=timezone.utc)
         return (0, quando)
-    except ValueError:
+    except (ValueError, TypeError):  # data ausente, vazia ou de tipo estranho: vai para o fim
         return (1, datetime.max.replace(tzinfo=timezone.utc))
 
 

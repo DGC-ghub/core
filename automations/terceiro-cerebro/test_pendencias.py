@@ -141,3 +141,28 @@ def test_positivos_depende_do_e_aguardando():
     assert len(pendencias_do_socio("danilo", _bloq("depende do Danilo"), [], "")) == 1
     assert len(pendencias_do_socio("gabriel", _bloq("Aguardando o Gabriel"), [], "")) == 1
     assert len(pendencias_do_socio("danilo", _bloq("Ask Danilo to approve"), [], "")) == 1
+
+
+# --- campos nulos vindos da API não derrubam a lista -------------------------------------------
+def test_bloqueada_com_titulo_e_data_nulos():
+    i = {"identifier": "DGC-1", "title": None, "status": "blocked"}
+    c = {"body": "esperando o Gabriel", "createdAt": None}
+    r = pendencias_do_socio("gabriel", [(i, [c])], [], "")
+    assert len(r) == 1
+    assert (r[0].titulo, r[0].desde) == ("", "")
+
+
+def test_cartao_com_campos_nulos():
+    cartao = {"id": "i1", "kind": "request_confirmation", "status": "pending",
+              "title": None, "summary": None, "createdAt": None}
+    i = {"identifier": None, "title": None}
+    r = pendencias_do_socio("gabriel", [], [(i, cartao)], "")
+    assert len(r) == 1
+    assert (r[0].ref, r[0].titulo, r[0].desde, r[0].detalhe) == ("", "", "", "")
+
+
+def test_data_de_tipo_estranho_vai_para_o_fim():
+    datado = {"id": "a", "kind": "x", "status": "pending", "title": "datado", "createdAt": "2026-11-24T08:00:00Z"}
+    estranho = {"id": "b", "kind": "x", "status": "pending", "title": "estranho", "createdAt": 12345}
+    r = pendencias_do_socio("gabriel", [], [(issue("DGC-2"), estranho), (issue("DGC-3"), datado)], "")
+    assert [p.titulo for p in r] == ["datado", "estranho"]
