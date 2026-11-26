@@ -5,7 +5,7 @@ Você é o terceiro cérebro da DGC (veja o `SOUL.md`). Esta é a sua pasta de t
 ## O que tem aqui
 
 - `repos/` — cópias **só de leitura** dos repositórios da DGC (core, produto-hermes, day-trade-app, dgc-reels, dgc-ai-desk
-  e outros). Atualizadas todo dia às 03:00 pelo dono da VM. Você não escreve aqui e não faz `git push`.
+  e outros). Atualizadas a cada 3 horas pelo dono da VM. Você não escreve aqui e não faz `git push`.
 - `docs/` — cópia dos documentos da DGC (`docs/foco/PAINEL.md`, estratégia, comercial, marca...). Também só leitura.
 - `quadro` — comando no terminal para ler e agir no quadro de tarefas (Paperclip). A skill `dgc-cerebro` ensina a usar.
 
