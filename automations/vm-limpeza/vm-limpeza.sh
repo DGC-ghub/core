@@ -50,6 +50,8 @@ for p in "$PROC_DIR"/[0-9]*; do
   readlink "$p/cwd" 2>/dev/null
   for f in "$p"/fd/*; do readlink "$f" 2>/dev/null; done
 done | grep '^/' | sort -u > "$EM_USO"
+# Sockets Unix em uso: o fd aparece como socket:[inode], então lemos os caminhos em /proc/net/unix.
+awk 'NR>1 && $NF ~ /^\// {print $NF}' "${LIMPEZA_UNIX:-/proc/net/unix}" 2>/dev/null | sort -u >> "$EM_USO"
 
 em_uso() { # $1 = caminho (arquivo ou pasta)
   awk -v d="$1" '$0==d || index($0, d "/")==1 {f=1; exit} END{exit !f}' "$EM_USO"
@@ -98,7 +100,7 @@ fi
 echo "-- 4. caches regeneráveis (semanal)"
 agora=$(date +%s); ultimo=$(cat "$STATE" 2>/dev/null || echo 0)
 if [ $FORCAR = 1 ] || [ $((agora-ultimo)) -ge $((CACHE_DIAS*86400)) ]; then
-  if pgrep -u "$(id -u)" -x 'npm|pnpm|pip|pip3|node-gyp' >/dev/null 2>&1; then
+  if pgrep -u "$(id -u)" -f '(^|/)(npm|pnpm|pip3?|node-gyp)( |$)' >/dev/null 2>&1; then
     echo "   PULADO: npm/pnpm/pip em execução agora"
   else
     for c in "${CACHES[@]}"; do

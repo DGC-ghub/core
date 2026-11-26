@@ -38,7 +38,7 @@ trocar `LIMITE_MIN` no `limpa-runs.sh`.
 ~/bin/vm-limpeza.sh --aplicar
 ```
 
-Variáveis para teste: `LIMPEZA_TMP_DIR`, `LIMPEZA_TMP_DIAS`, `LIMPEZA_CACHES`, `LIMPEZA_STATE`, `LIMPEZA_LOCK`.
+Variáveis para teste: `LIMPEZA_TMP_DIR`, `LIMPEZA_TMP_DIAS`, `LIMPEZA_CACHES`, `LIMPEZA_CACHE_DIAS`, `LIMPEZA_STATE`, `LIMPEZA_LOCK`, `LIMPEZA_PROC`, `LIMPEZA_MOUNTINFO`, `LIMPEZA_UNIX`.
 
 ## Instalação (só depois do merge pelos sócios)
 
