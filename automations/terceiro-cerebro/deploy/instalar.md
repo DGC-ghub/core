@@ -10,9 +10,9 @@ serviço `dgc-cerebro` está instalado mas **desligado**, e nenhum job de cron f
 | Usuário | `cerebro` (home `/home/cerebro`, modo 700, `loginctl enable-linger`) | Isolado do `dgc`: o terminal do Hermes não lê os segredos do `dgc`. Em 26/11 também foram fechados `/home/pi` (750) e os arquivos do `dgc` em `/tmp` (o-rwx); ver "Isolamento do `cerebro`" abaixo. Teste: `sudo -u cerebro cat /home/dgc/.config/dgc-atendimento/compose.env` dá "Permission denied". |
 | Hermes Agent | `/home/cerebro/.hermes/hermes-agent`, método git, commit `9976f4857b72439d79016354d7b6e1a3ee952e2f` | `hermes --version` → `v0.22.5+1722.g9976f48`. Instalado com o `scripts/install.sh` do próprio repositório (`--commit … --non-interactive --skip-browser --skip-computer-use`). **Não rode `hermes update`** sem ok do dono: ele sai do commit fixado. |
 | Config do Hermes | `~/.hermes/config.yaml` | `model.provider: openai-codex`, `model.default: gpt-6-sol`, `timezone: America/Sao_Paulo`, `terminal.cwd: /home/cerebro/cerebro`, `whatsapp.unauthorized_dm_behavior: ignore`. |
-| `.env` do Hermes | `~/.hermes/.env` (modo 600) | `WHATSAPP_ENABLED=true`, `WHATSAPP_MODE=bot`, `WHATSAPP_ALLOWED_USERS=<telefones dos dois sócios, com e sem o 9º dígito>`, `WHATSAPP_GROUP_POLICY=allowlist`, `WHATSAPP_GROUP_ALLOWED_USERS=<JID do grupo dos sócios>`, `WHATSAPP_REQUIRE_MENTION=true` e `WHATSAPP_MENTION_PATTERNS=["^[ ]*@?hermes(?![a-z])"]` (no grupo só responde a @menção, resposta a ele ou "hermes," no começo da frase). Só o grupo dos sócios é liberado; qualquer outro grupo é ignorado. |
+| `.env` do Hermes | `~/.hermes/.env` (modo 600) | `WHATSAPP_ENABLED=true`, `WHATSAPP_MODE=bot`, `WHATSAPP_ALLOWED_USERS=<telefones dos dois sócios, com e sem o 9º dígito>`, `WHATSAPP_GROUP_POLICY=allowlist`, `WHATSAPP_GROUP_ALLOWED_USERS=<JID do grupo dos sócios>`, `WHATSAPP_REQUIRE_MENTION=false` e `WHATSAPP_MENTION_PATTERNS=["^[ ]*@?hermes(?![a-z])"]` (no grupo ele lê toda mensagem e decide pelo contexto se entra; o plugin `barra-do-robo` deixa o `[SILENT]` valer quando não chamaram o Hermes de forma explícita). Só o grupo dos sócios é liberado; qualquer outro grupo é ignorado. |
 | Personalidade | `~/.hermes/SOUL.md` (fonte: `hermes/SOUL.md`) | |
-| Plugin `barra-do-robo` | `~/.hermes/plugins/barra-do-robo/` (fonte: `hermes/plugins/barra-do-robo/`), habilitado em `plugins.enabled` | Gancho `pre_gateway_dispatch`: no WhatsApp, o Hermes descarta (`skip`) qualquer texto que, sem espaços à esquerda, comece com "/" (comandos do robô de vendas), e também mensagem marcada como do dono do aparelho. O resto segue normal. Teste: `python3 -m pytest automations/terceiro-cerebro/test_barra_do_robo.py`. |
+| Plugin `barra-do-robo` | `~/.hermes/plugins/barra-do-robo/` (fonte: `hermes/plugins/barra-do-robo/`), habilitado em `plugins.enabled` | Gancho `pre_gateway_dispatch`: no WhatsApp, o Hermes descarta (`skip`) qualquer texto que, sem espaços à esquerda, comece com "/" (comandos do robô de vendas), e também mensagem marcada como do dono do aparelho. O resto segue normal. Em grupo, também marca `event.reply_expected = False` nas mensagens que não chamam o Hermes (menção, resposta a ele, ou "hermes" no começo), para o `[SILENT]` do modelo ser aceito. Teste: `python3 -m pytest automations/terceiro-cerebro/test_barra_do_robo.py`. |
 | Skill | `~/.hermes/skills/dgc/dgc-cerebro/SKILL.md` (fonte: `hermes/skills/dgc-cerebro/SKILL.md`) | |
 | Pasta de trabalho | `/home/cerebro/cerebro` | `AGENTS.md` (fonte: `hermes/AGENTS.md`), `repos -> /srv/cerebro/repos`, `docs -> /srv/cerebro/docs`. |
 | CLI `quadro` | `/home/cerebro/ferramentas/terceiro-cerebro/*.py` + wrapper `/home/cerebro/.local/bin/quadro` | Config em `/home/cerebro/.config/dgc-cerebro/cerebro.env` (modo 600). Estado da cota em `~/.local/state/dgc-cerebro/cota.json`. |
@@ -113,7 +113,7 @@ número da DGC; a Evolution segue como o outro aparelho do robô de vendas.
 
 ## Grupo dos sócios
 
-Desde 26/11 o Hermes está no grupo "DGC Hub · Sócios + Hermes" (Gabriel, Danilo e o número da DGC). Trabalho (cobrança, crítica, erros e
+Desde 26/11 o Hermes está no grupo "DGC Hub · Sócios + Hermes" (Gabriel, Danilo e o número da DGC). Ele lê toda mensagem do grupo, sem precisar de @menção, e decide pelo contexto se é com ele ou se tem algo útil a dizer; quando os sócios conversam entre si, responde só `[SILENT]` e nada sai. Intervenção espontânea: no máximo 1 por hora e dentro do teto de 3 por dia. Trabalho (cobrança, crítica, erros e
 vitórias, sempre com prova) vai para o grupo; o privado fica para assunto pessoal. As duas rodadas diárias (`deploy/cron-jobs.md`) falam no grupo,
 com teto de 3 mensagens espontâneas por dia (`quadro cota grupo` / `quadro enviei grupo`). Os sócios podem pedir rotinas novas no grupo e o Hermes
 mesmo cria o job de cron. O Danilo está em `SOCIOS` (`danilo:<telefone>`) e na allowlist; o nome e o LID dele o Hermes aprende na primeira
@@ -138,3 +138,17 @@ Em conversa o Hermes **sempre responde** (o `[SILENT]` é só do cron): o gatewa
 - **Outros números** (clínicas): fora da `WHATSAPP_ALLOWED_USERS`, o Hermes ignora (`unauthorized_dm_behavior: ignore`).
 - Pendência: `/sethome` (para entrega do cron sem chat id) também começa com "/" e seria descartado pelo plugin; use o
   destino explícito (`whatsapp:<LID do Gabriel>@lid`) no `cron-jobs.md`.
+
+## Ponte do WhatsApp: `link-preview-js`
+
+O Baileys (ponte do WhatsApp) importa `link-preview-js` (dependência opcional dele) ao enviar mensagem com URL; sem o pacote, a resposta falha
+com `ERR_MODULE_NOT_FOUND`. O `package.json` da ponte do Hermes não o lista (falha do upstream). Correção aplicada na VM, como `cerebro`:
+
+```sh
+cd ~/.hermes/hermes-agent/scripts/whatsapp-bridge && npm install --no-save link-preview-js@3
+```
+
+`--no-save` não altera `package.json` nem o lock (o `git status` do Hermes segue limpo; `node_modules` é ignorado) e sobrevive a reinício do serviço.
+**Um `hermes update` ou reinstalação que refaça o `node_modules` pode apagar o pacote**: depois de qualquer update, rode o comando de novo e reinicie o
+serviço. Não existe opção do Hermes para desligar a prévia de link (o `makeWASocket` do `bridge.js` não a expõe); a alternativa seria editar o código
+do Hermes, o que quebra o update, então ficou o `npm install --no-save`.
