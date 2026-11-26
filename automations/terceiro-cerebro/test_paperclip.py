@@ -1,3 +1,4 @@
+import http.client
 import io
 import json
 import urllib.error
@@ -101,24 +102,37 @@ def test_escritas(chamar, metodo, caminho, corpo):
 
 def test_erro_de_rede_vira_quadro_fora_do_ar():
     ab = Abrir(erro=urllib.error.URLError("connection refused"))
-    with pytest.raises(QuadroForaDoAr):
+    with pytest.raises(QuadroForaDoAr) as e:
         cliente(ab).issues(["blocked"])
+    assert str(e.value) == "Paperclip fora do ar: <urlopen error connection refused>"
 
 
 def test_timeout_vira_quadro_fora_do_ar():
-    with pytest.raises(QuadroForaDoAr):
+    with pytest.raises(QuadroForaDoAr) as e:
         cliente(Abrir(erro=TimeoutError("lento"))).issues(["blocked"])
+    assert str(e.value) == "Paperclip fora do ar: lento"
 
 
 def test_5xx_vira_quadro_fora_do_ar():
     erro = urllib.error.HTTPError("http://x", 503, "Service Unavailable", {}, io.BytesIO(b"{}"))
+    with pytest.raises(QuadroForaDoAr) as e:
+        cliente(Abrir(erro=erro)).issues(["blocked"])
+    assert str(e.value) == "Paperclip fora do ar (HTTP 503)"
+
+
+@pytest.mark.parametrize("erro", [
+    http.client.IncompleteRead(b"parcial"),
+    http.client.BadStatusLine("lixo"),
+])
+def test_resposta_cortada_vira_quadro_fora_do_ar(erro):
     with pytest.raises(QuadroForaDoAr):
         cliente(Abrir(erro=erro)).issues(["blocked"])
 
 
 def test_resposta_que_nao_e_json_vira_quadro_fora_do_ar():
-    with pytest.raises(QuadroForaDoAr):
+    with pytest.raises(QuadroForaDoAr) as e:
         cliente(Abrir(b"<html>bad gateway</html>")).issues(["blocked"])
+    assert str(e.value).startswith("Paperclip fora do ar: ")
 
 
 def test_4xx_e_recusa_nao_fora_do_ar_e_vem_mascarada():
@@ -126,8 +140,26 @@ def test_4xx_e_recusa_nao_fora_do_ar_e_vem_mascarada():
     with pytest.raises(QuadroRecusou) as e:
         cliente(Abrir(erro=erro)).issue("DGC-999")
     assert e.value.codigo == 404
-    assert GHP not in str(e.value)
+    assert str(e.value) == 'Paperclip recusou o pedido (HTTP 404): {"error":"nao achei [segredo]"}'
     assert not isinstance(e.value, QuadroForaDoAr)
+
+
+def test_4xx_mascara_antes_de_cortar_nao_sobra_pedaco_de_segredo():
+    corpo = "x" * 290 + GHP  # o segredo atravessa o limite de 300
+    erro = urllib.error.HTTPError("http://x", 400, "Bad", {}, io.BytesIO(corpo.encode()))
+    with pytest.raises(QuadroRecusou) as e:
+        cliente(Abrir(erro=erro)).issue("DGC-1")
+    assert str(e.value) == "Paperclip recusou o pedido (HTTP 400): " + "x" * 290 + "[segredo]"
+    assert "ghp_" not in str(e.value)
+
+
+def test_get_com_corpo_vazio_devolve_none():
+    assert cliente(Abrir(b"")).issue("DGC-1") is None
+
+
+def test_token_literal_na_resposta_e_mascarado():
+    ab = Abrir([{"id": "c1", "body": f"o token e {TOKEN} ok"}])
+    assert cliente(ab).comentarios("DGC-1")[0]["body"] == "o token e [segredo] ok"
 
 
 @pytest.mark.parametrize("erro", [

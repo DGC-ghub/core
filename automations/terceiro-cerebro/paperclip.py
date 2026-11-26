@@ -30,6 +30,7 @@ sob /api e pedem `Authorization: Bearer <board API key>`:
 
 Erros do servidor: 4xx traz {"error": "..."}.
 """
+import http.client
 import json
 import urllib.error
 import urllib.parse
@@ -50,16 +51,6 @@ class QuadroRecusou(Exception):
     def __init__(self, codigo: int, detalhe: str):
         super().__init__(f"Paperclip recusou o pedido (HTTP {codigo}): {detalhe}")
         self.codigo = codigo
-
-
-def _mascarar_tudo(dado):
-    if isinstance(dado, str):
-        return mascarar(dado)
-    if isinstance(dado, list):
-        return [_mascarar_tudo(x) for x in dado]
-    if isinstance(dado, dict):
-        return {k: _mascarar_tudo(v) for k, v in dado.items()}
-    return dado
 
 
 class Paperclip:
@@ -103,8 +94,20 @@ class Paperclip:
         return urllib.parse.quote(str(valor), safe="")
 
     def _limpar(self, texto: str) -> str:
-        """Tira o token (se vazou numa mensagem de erro) e mascara o resto."""
-        return mascarar(str(texto).replace(self._token, SEGREDO))
+        """Tira o token literal (se vazou) e mascara os padrões de segredo."""
+        texto = str(texto)
+        if self._token:
+            texto = texto.replace(self._token, SEGREDO)
+        return mascarar(texto)
+
+    def _limpar_tudo(self, dado):
+        if isinstance(dado, str):
+            return self._limpar(dado)
+        if isinstance(dado, list):
+            return [self._limpar_tudo(x) for x in dado]
+        if isinstance(dado, dict):
+            return {k: self._limpar_tudo(v) for k, v in dado.items()}
+        return dado
 
     def _pedir(self, metodo: str, caminho: str, corpo: dict | None = None):
         cabecalhos = {"Authorization": f"Bearer {self._token}", "Accept": "application/json"}
@@ -116,18 +119,18 @@ class Paperclip:
         try:
             with self._abrir(req, timeout=TEMPO_LIMITE) as resp:
                 bruto = resp.read()
-            return _mascarar_tudo(json.loads(bruto)) if bruto.strip() else None
+            return self._limpar_tudo(json.loads(bruto)) if bruto.strip() else None
         except urllib.error.HTTPError as e:
-            detalhe = self._limpar(self._ler_erro(e))
             if e.code >= 500:
                 raise QuadroForaDoAr(f"Paperclip fora do ar (HTTP {e.code})") from None
-            raise QuadroRecusou(e.code, detalhe) from None
-        except (OSError, ValueError) as e:  # rede, timeout, JSON inválido
+            # mascara primeiro e só depois corta, para não deixar pedaço de segredo na emenda
+            raise QuadroRecusou(e.code, self._limpar(self._ler_erro(e))[:300]) from None
+        except (OSError, ValueError, http.client.HTTPException) as e:  # rede, timeout, JSON inválido, resposta cortada
             raise QuadroForaDoAr(f"Paperclip fora do ar: {self._limpar(e)}") from None
 
     @staticmethod
     def _ler_erro(e: urllib.error.HTTPError) -> str:
         try:
-            return e.read().decode("utf-8", "replace")[:300]
+            return e.read().decode("utf-8", "replace")
         except Exception:
             return str(e.reason)
