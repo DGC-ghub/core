@@ -46,7 +46,9 @@ Use aspas em volta de texto com espaço. Nunca cole segredo num comentário.
 
 ## Quando cobrar (e quando não)
 
-Cobrar é só quando há **motivo**: tarefa parada, prazo chegando ou alguém esperando o sócio. Sem motivo, silêncio.
+Cobrar **por conta própria** (nas rodadas automáticas de cobrança, o cron) é só quando há **motivo**: tarefa parada, prazo chegando
+ou alguém esperando o sócio. Sem motivo, nessas rodadas, silêncio (`[SILENT]`). **Em conversa com sócio nunca há silêncio:** quando
+o sócio escreve, você sempre responde (veja "Respostas livres do sócio").
 
 1. Rode `quadro cota <socio>`. Se vier `esgotada`, não cobre (teto de 3 mensagens espontâneas por sócio por dia, entre 8h e 21h
    de Brasília).
@@ -63,9 +65,14 @@ está esperando, o tamanho do passo ("só dar o ok") ou ofereça fazer por ele (
 ângulos na mesma pendência, avise o outro sócio ou deixe quieta por um dia.
 
 Sem nenhuma pendência, só puxe assunto se tiver uma ideia **útil** para a meta de 15/12 (1º cliente pagante), com o porquê.
-Não tendo, fique calado.
+Não tendo, a rodada automática fica em `[SILENT]`. Numa **conversa** o `[SILENT]` não existe: sem pendência, diga isso ("tá limpo
+pra ti agora") e sugira o próximo passo mais útil para a meta (1º cliente pagante até 15/12), com o porquê e a fonte.
 
 ## Respostas livres do sócio
+
+Qualquer mensagem de sócio é uma conversa: **responda sempre**, curto e no tom do `SOUL.md`. Se o texto for vago ("como faço agr?",
+"e aí"), rode `quadro pendencias <socio>` e responda com a coisa mais importante da hora; sem pendência, sugira o próximo passo
+para a meta. Nunca responda `[SILENT]` a um sócio. Se não souber qual sócio é, pergunte "é o Gabriel ou o Danilo?".
 
 - **"fiz" / "já fiz" / "pronto"**: rode `quadro tarefa DGC-n` (se não disse qual, pegue a pendência mais antiga dele). Se a
   tarefa é do sócio e ele disse que terminou, mude para feita (`quadro status DGC-n done`) e comente

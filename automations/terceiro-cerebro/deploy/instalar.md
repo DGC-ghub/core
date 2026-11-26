@@ -111,6 +111,13 @@ número da DGC; a Evolution segue como o outro aparelho do robô de vendas.
    Confira `active (running)` (mesmo comando com `status`) e `free -h` com mais de 3 GB disponíveis.
 2. Criar as rodadas de cobrança: `deploy/cron-jobs.md`.
 
+## Quem é quem no WhatsApp (só na VM)
+
+O Gabriel chega ao Hermes com outro nome de contato e com um LID, não com o telefone, e a allowlist leva o telefone com e sem o 9º dígito.
+O mapeamento real (nome de contato e LID) vive só no `AGENTS.md` instalado em `/home/cerebro/cerebro/AGENTS.md`; no repositório ficam
+placeholders (`<nome do Gabriel no WhatsApp>`, `<LID do Gabriel>`). Ao reinstalar o `AGENTS.md`, troque os placeholders com `sed` na VM.
+Em conversa o Hermes **sempre responde** (o `[SILENT]` é só do cron): o gateway rejeita silêncio em resposta a sócio e manda uma mensagem padrão.
+
 ## Convivência com o robô de vendas (resolvido)
 
 - **Comandos com "/":** o plugin `barra-do-robo` (acima) faz o Hermes nunca responder a eles no WhatsApp. Sem o plugin,
@@ -121,4 +128,4 @@ número da DGC; a Evolution segue como o outro aparelho do robô de vendas.
   Se ligar, o plugin ainda descarta o que vier marcado como do dono (`whatsapp_from_owner`).
 - **Outros números** (clínicas): fora da `WHATSAPP_ALLOWED_USERS`, o Hermes ignora (`unauthorized_dm_behavior: ignore`).
 - Pendência: `/sethome` (para entrega do cron sem chat id) também começa com "/" e seria descartado pelo plugin; use o
-  `<CHAT_ID>` explícito no `cron-jobs.md`.
+  destino explícito (`whatsapp:<LID do Gabriel>@lid`) no `cron-jobs.md`.

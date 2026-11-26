@@ -1,6 +1,6 @@
 # Rodadas de cobrança (cron do Hermes)
 
-Estes jobs **ainda não foram criados**: precisam do chat do WhatsApp, que só existe depois do pareamento (passo 3 do
+Estes jobs precisam do chat do WhatsApp, que só existe depois do pareamento (passo 3 do
 `instalar.md`) e do serviço no ar. Crie-os como o usuário `cerebro`, depois que o Gabriel mandar a primeira mensagem
 para o número.
 
@@ -12,13 +12,18 @@ Confira depois de criar: `hermes cron list` mostra a próxima execução.
 
 ## Descobrir o destino
 
-Com o gateway no ar e o Gabriel já tendo escrito para o número da DGC, o destino é `whatsapp:<CHAT_ID>`. O `<CHAT_ID>`
-é o id do chat dele no WhatsApp (algo como `<numero>@s.whatsapp.net`); veja-o em `hermes sessions list` ou nos logs
-(`hermes logs`). Use o id explícito (o `/sethome` não serve aqui: começa com "/" e o plugin `barra-do-robo` o descarta).
+O WhatsApp entrega o chat do Gabriel com um **LID** (`<LID do Gabriel>@lid`), não com o telefone. É esse id que vai no destino:
+`whatsapp:<LID do Gabriel>@lid`. O id aparece no log de entrada do gateway (`hermes logs`, linha `inbound ... chat=...@lid`) depois que
+ele escreve para o número da DGC. O valor real fica só na VM (`AGENTS.md` instalado em `~/cerebro`), nunca no repositório.
+
+**O Hermes aceita `@lid` como destino de cron**: o parser do destino do WhatsApp (`_SEND_JID_RE` em `plugins/platforms/whatsapp/adapter.py`)
+aceita `...@(g.us|s.whatsapp.net|lid|broadcast|newsletter)` e o envio (`to_whatsapp_jid`, `gateway/whatsapp_identity.py`) devolve o JID
+com `@` sem mexer. Telefone puro também vira `<numero>@s.whatsapp.net`, mas pode não ser o mesmo chat que o LID do aparelho dele; use o LID.
+`/sethome` não serve (começa com "/" e o plugin `barra-do-robo` o descarta).
 
 ## Os dois jobs
 
-O prompt é o mesmo nos dois. Troque `<CHAT_ID>` antes de rodar.
+O prompt é o mesmo nos dois. Troque `<LID do Gabriel>` antes de rodar.
 
 ```bash
 sudo -u cerebro -i
@@ -35,14 +40,14 @@ hermes cron create "0 9 * * 1-6" "$PROMPT" \
   --name cerebro-manha \
   --skill dgc-cerebro \
   --workdir /home/cerebro/cerebro \
-  --deliver "whatsapp:<CHAT_ID>"
+  --deliver "whatsapp:<LID do Gabriel>@lid"
 
 # tarde: segunda a sexta, 17:30 de Brasília
 hermes cron create "30 17 * * 1-5" "$PROMPT" \
   --name cerebro-tarde \
   --skill dgc-cerebro \
   --workdir /home/cerebro/cerebro \
-  --deliver "whatsapp:<CHAT_ID>"
+  --deliver "whatsapp:<LID do Gabriel>@lid"
 
 hermes cron list
 ```
@@ -51,7 +56,7 @@ hermes cron list
   mesmo assim.
 - `--workdir` carrega o `AGENTS.md` da pasta `~/cerebro` no job; `--skill dgc-cerebro` carrega a skill.
 - Para testar sem esperar o horário: `hermes cron run cerebro-manha`.
-- Para o Danilo (depois do aceite dele em 26/11): crie jobs iguais trocando `gabriel` por `danilo` no prompt e o `<CHAT_ID>`;
+- Para o Danilo (depois do aceite dele em 26/11): crie jobs iguais trocando `gabriel` por `danilo` no prompt e o destino (o LID dele);
   ele também precisa estar em `SOCIOS` no `cerebro.env` e em `WHATSAPP_ALLOWED_USERS` no `.env` do Hermes.
 
 ## Cópias de conhecimento (não é job do Hermes)
