@@ -1,5 +1,5 @@
 # Gerado pelo próprio Hermes (hermes_cli.gateway.generate_systemd_unit, commit 9976f48) como unit de usuário,
-# com 4 mudanças: Description, WorkingDirectory=%h/cerebro, MemoryMax=1500M e RestartSec=30 (o padrão é 5).
+# com estas mudanças: Description, WorkingDirectory=%h/cerebro, MemoryMax=1500M, RestartSec=30 (o padrão é 5) e RestartSteps=5/RestartMaxDelaySec=10min (espaça reinícios em loop; systemd 255).
 # Caminhos absolutos do cerebro viraram %h para o arquivo não carregar o home de ninguém. Não habilitar sem os 3 passos do dono.
 [Unit]
 Description=DGC Cérebro (Hermes Agent gateway, terceiro cérebro da DGC)
@@ -17,6 +17,8 @@ Environment="HERMES_HOME=%h/.hermes"
 Environment="HERMES_SUPERVISED_CHILD=1"
 Restart=always
 RestartSec=30
+RestartSteps=5
+RestartMaxDelaySec=10min
 RestartForceExitStatus=75
 SuccessExitStatus=75
 RestartPreventExitStatus=78

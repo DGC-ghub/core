@@ -18,7 +18,8 @@ RUNS="${CEREBRO_RUNS:-$HOME/paperclip/.paperclip-runtime/runs}"
 REPOS=(produto-hermes day-trade-app dgc-reels core dgc-ai-desk Vitrine_DGC dgc-template-ts)
 
 # O que nunca entra na cópia (nem nos repositórios, nem nos documentos).
-EXCLUIR=('.env*' '*.env' '*.pem' '*.key' 'node_modules/' '.git/' '*.db' '*.sqlite' '**/pacientes/**' '**/conversas/**')
+EXCLUIR=('.env*' '*.env' '*.pem' '*.key' 'node_modules/' '.git/' '*.db' '*.sqlite' '**/pacientes/**' '**/conversas/**'
+         '*cofre*' '*saldo*' '*carteira*' '*wallet*' '*vault*')
 # Padrão que a trava final procura, e o padrão estrito (chave de verdade, não código que apenas a detecta).
 PADRAO='sk-ant-|ghp_|github_pat_'
 ESTRITO='sk-ant-[A-Za-z0-9_-]{20,}|gh[pousr]_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{40,}'

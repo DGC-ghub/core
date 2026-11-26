@@ -18,7 +18,7 @@ serviço `dgc-cerebro` está instalado mas **desligado**, e nenhum job de cron f
 | CLI `quadro` | `/home/cerebro/ferramentas/terceiro-cerebro/*.py` + wrapper `/home/cerebro/.local/bin/quadro` | Config em `/home/cerebro/.config/dgc-cerebro/cerebro.env` (modo 600). Estado da cota em `~/.local/state/dgc-cerebro/cota.json`. |
 | Conhecimento | `/srv/cerebro/{repos,docs}` (dono `dgc`, grupo `cerebro`, pastas 750, arquivos 640) | Atualizado por `deploy/atualizar-copias.sh`, instalado em `~dgc/bin/atualizar-copias-cerebro.sh`. |
 | Timer das cópias | `~dgc/.config/systemd/user/cerebro-copias.{service,timer}` (usuário `dgc`) | Todo dia 06:00 UTC = 03:00 de Brasília. Ativo. Rodar à mão: `systemctl --user start cerebro-copias.service`; log: `journalctl --user -u cerebro-copias`. |
-| Serviço | `/home/cerebro/.config/systemd/user/dgc-cerebro.service` | Gerado pelo próprio Hermes (`generate_systemd_unit`: `HERMES_SUPERVISED_CHILD=1`, `KillMode=mixed`, `ExecStop`/`ExecStopPost` com limpeza do cgroup, `StartLimitIntervalSec=0`, `RestartPreventExitStatus=78`, `TimeoutStopSec` calculado), mais `WorkingDirectory=%h/cerebro`, `MemoryMax=1500M` e `RestartSec=30`. **Instalado, desabilitado e parado.** |
+| Serviço | `/home/cerebro/.config/systemd/user/dgc-cerebro.service` | Gerado pelo próprio Hermes (`generate_systemd_unit`: `HERMES_SUPERVISED_CHILD=1`, `KillMode=mixed`, `ExecStop`/`ExecStopPost` com limpeza do cgroup, `StartLimitIntervalSec=0`, `RestartPreventExitStatus=78`, `TimeoutStopSec` calculado), mais `WorkingDirectory=%h/cerebro`, `MemoryMax=1500M`, `RestartSec=30`, `RestartSteps=5` e `RestartMaxDelaySec=10min`. **Instalado, desabilitado e parado.** |
 
 ### Detalhes das cópias
 
@@ -45,11 +45,19 @@ cairia o perfil pessoal de cada sócio) e, no SOUL e na skill, a regra de só gr
 ### Isolamento do `cerebro` (o que ele consegue ler na VM)
 
 - Fechado em 26/11: `chmod 750 /home/pi` (era 755; dados antigos do Paperclip de 15/11, `dgc-hub`, projetos) e `chmod -R o-rwx` nos
-  arquivos do `dgc` em `/tmp` (81 mil arquivos de trabalho dos agentes). Nada do `dgc` roda como outro usuário, então os serviços não foram afetados.
+  arquivos do `dgc` em `/tmp` (81 mil arquivos de trabalho dos agentes). Nada do `dgc` roda como outro usuário, então os serviços não foram afetados. O `/tmp` privado (abaixo) fecha o resto para o serviço.
 - Ainda legível, de propósito ou fora do alcance: `/srv/cerebro` (as cópias), `/etc` e `/var/lib` do sistema (só arquivos padrão do Ubuntu),
   os serviços em `127.0.0.1` (Paperclip 3100, Chatwoot, robô: pedem token que o `cerebro` não tem) e o `tailscale status`. O `docker.sock` é do grupo `docker` (o `cerebro` não está).
-- Vazamento que volta: o `dgc` cria arquivos novos em `/tmp` com `umask 022` (legíveis por todos). Se isso importar, reaplicar
-  `sudo find /tmp -mindepth 1 -maxdepth 1 -user dgc -exec chmod -R o-rwx {} +` ou usar `UMask=0027` nas units do `dgc`.
+- **/tmp privado e teto de memória (drop-ins de sistema, uid 1002 = `id -u cerebro`):**
+  - `deploy/systemd/user@1002.service.d/cerebro.conf` -> `/etc/systemd/system/user@1002.service.d/cerebro.conf` (`PrivateTmp=yes`).
+    Tudo que o gerenciador de usuário do `cerebro` sobe (o serviço do Hermes, workers, crons) vê um `/tmp` vazio e só dele.
+    `PrivateTmp` dentro da unit de usuário não funciona nesta VM (`apparmor_restrict_unprivileged_userns=1`), por isso vai no `user@1002.service`.
+  - `deploy/systemd/user-1002.slice.d/memoria.conf` -> `/etc/systemd/system/user-1002.slice.d/memoria.conf` (`MemoryHigh=1500M`, `MemoryMax=1800M`):
+    teto para tudo do usuário, inclusive os escopos `hermes-worker-*` que escapam do `MemoryMax=1500M` da unit.
+  - Aplicar: copiar os dois arquivos, `sudo systemctl daemon-reload` e `sudo systemctl restart user@1002.service` (com nada do `cerebro` rodando).
+  - Resíduo: uma sessão interativa do `cerebro` (SSH, `sudo -u cerebro -i`) **não** passa pelo gerenciador de usuário e ainda vê o `/tmp` real; ali só
+    vale o `chmod -R o-rwx` de 26/11 nos arquivos do `dgc` que já existiam, e arquivos novos do `dgc` com umask 022 ficam legíveis.
+    Não use sessão interativa do `cerebro` para tarefas do agente.
 - Frente de trade: o `atualizar-copias.sh` tira da cópia de `day-trade-app` e `dgc-ai-desk` qualquer arquivo ou pasta com `cofre`, `vault`, `saldo`, `carteira` ou `wallet` no nome (em 26/11 não havia nenhum).
 
 ## Os 3 passos do dono (Gabriel)
