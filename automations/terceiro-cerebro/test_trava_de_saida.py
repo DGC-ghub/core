@@ -118,9 +118,9 @@ def test_execute_code_tambem_e_conferido():
 # --- segredos -----------------------------------------------------------------------------------
 @pytest.mark.parametrize("cmd", [
     "cat .env", "cat ~/.hermes/.env", "grep TOKEN /etc/dgc-cerebro/cerebro.env", "cat cerebro.env",
-    "cat /home/dgc/.config/dgc-atendimento/compose.env", "cat ~/.hermes/auth.json", "cat ~/.git-credentials",
+    "cat /home/usuario/.config/app/compose.env", "cat ~/.hermes/auth.json", "cat ~/.git-credentials",
     "cat ~/.ssh/id_ed25519", "ls ~/.ssh/", "cat /proc/self/environ", "cat /proc/1234/environ",
-    "cat repos/x/.env.local", "head -c 10 /home/dgc/.ssh/id_github_trabalhadora",
+    "cat repos/x/.env.local", "head -c 10 /home/usuario/.ssh/id_ed25519",
 ])
 def test_comando_com_lugar_de_segredo_e_bloqueado(cmd):
     motivo = decidir("terminal", command=cmd)
