@@ -11,8 +11,8 @@ Subcomandos:
   quadro status <DGC-n> <status>
   quadro aceitar <DGC-n> <interacao> --socio <nome>  aceita o cartão e comenta quem aprovou
   quadro aprovar <approval> <DGC-n> --socio <nome>   aprova e comenta quem aprovou
-  quadro cota <socio>                                "pode" ou "esgotada" (só leitura)
-  quadro enviei <socio>                              reserva uma mensagem: "pode" (registrou) ou "esgotada"
+  quadro cota <socio|grupo>                          "pode" ou "esgotada" (só leitura)
+  quadro enviei <socio|grupo>                        reserva uma mensagem: "pode" (registrou) ou "esgotada"
   quadro e-comando "<texto>"                         "sim" se o texto começa com "/", senão "nao"
 
 Códigos de saída: 0 ok; 1 configuração ou sócio inválido; 2 quadro fora do ar (ou uso errado);
@@ -82,6 +82,18 @@ def _socio(config: dict, nome: str) -> str:
     if nome not in validos:
         raise ErroDeUso(f"sócio desconhecido: {mascarar(nome)[:40]} (use: {', '.join(validos)})")
     return nome
+
+
+GRUPO = "grupo"  # chave de cota do grupo dos sócios: vale só em `cota` e `enviei`, nunca como sócio
+
+
+def _chave_de_cota(config: dict, nome: str) -> str:
+    """Nome de sócio ou `grupo`. Sem SOCIOS configurado, nada vale (falha fechada), `grupo` inclusive."""
+    if nome.strip().lower() == GRUPO:
+        if not _nomes_dos_socios(config):
+            raise ErroDeUso("falta SOCIOS no cerebro.env")
+        return GRUPO
+    return _socio(config, nome)
 
 
 def _cliente(config: dict) -> Paperclip:
@@ -220,13 +232,13 @@ def _cmd_aceitar(args, config, pc, agora) -> int:
 
 
 def _cmd_cota(args, config, pc, agora) -> int:
-    socio = _socio(config, args.socio)
+    socio = _chave_de_cota(config, args.socio)
     _saida("pode" if _cota(config).pode_enviar(socio, agora) else "esgotada")
     return 0
 
 
 def _cmd_enviei(args, config, pc, agora) -> int:
-    socio = _socio(config, args.socio)
+    socio = _chave_de_cota(config, args.socio)
     _saida("pode" if _cota(config).reservar(socio, agora) else "esgotada")
     return 0
 

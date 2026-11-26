@@ -10,7 +10,7 @@ serviço `dgc-cerebro` está instalado mas **desligado**, e nenhum job de cron f
 | Usuário | `cerebro` (home `/home/cerebro`, modo 700, `loginctl enable-linger`) | Isolado do `dgc`: o terminal do Hermes não lê os segredos do `dgc`. Em 26/11 também foram fechados `/home/pi` (750) e os arquivos do `dgc` em `/tmp` (o-rwx); ver "Isolamento do `cerebro`" abaixo. Teste: `sudo -u cerebro cat /home/dgc/.config/dgc-atendimento/compose.env` dá "Permission denied". |
 | Hermes Agent | `/home/cerebro/.hermes/hermes-agent`, método git, commit `9976f4857b72439d79016354d7b6e1a3ee952e2f` | `hermes --version` → `v0.22.5+1722.g9976f48`. Instalado com o `scripts/install.sh` do próprio repositório (`--commit … --non-interactive --skip-browser --skip-computer-use`). **Não rode `hermes update`** sem ok do dono: ele sai do commit fixado. |
 | Config do Hermes | `~/.hermes/config.yaml` | `model.provider: openai-codex`, `model.default: gpt-6-sol`, `timezone: America/Sao_Paulo`, `terminal.cwd: /home/cerebro/cerebro`, `whatsapp.unauthorized_dm_behavior: ignore`. |
-| `.env` do Hermes | `~/.hermes/.env` (modo 600) | `WHATSAPP_ENABLED=true`, `WHATSAPP_MODE=bot`, `WHATSAPP_ALLOWED_USERS=<numero do Gabriel>`, `WHATSAPP_GROUP_POLICY=pairing` (grupos fechados: não repassa nada de grupo). Danilo entra depois do aceite dele. |
+| `.env` do Hermes | `~/.hermes/.env` (modo 600) | `WHATSAPP_ENABLED=true`, `WHATSAPP_MODE=bot`, `WHATSAPP_ALLOWED_USERS=<telefones dos dois sócios, com e sem o 9º dígito>`, `WHATSAPP_GROUP_POLICY=allowlist`, `WHATSAPP_GROUP_ALLOWED_USERS=<JID do grupo dos sócios>`, `WHATSAPP_REQUIRE_MENTION=true` e `WHATSAPP_MENTION_PATTERNS=["^[ ]*@?hermes(?![a-z])"]` (no grupo só responde a @menção, resposta a ele ou "hermes," no começo da frase). Só o grupo dos sócios é liberado; qualquer outro grupo é ignorado. |
 | Personalidade | `~/.hermes/SOUL.md` (fonte: `hermes/SOUL.md`) | |
 | Plugin `barra-do-robo` | `~/.hermes/plugins/barra-do-robo/` (fonte: `hermes/plugins/barra-do-robo/`), habilitado em `plugins.enabled` | Gancho `pre_gateway_dispatch`: no WhatsApp, o Hermes descarta (`skip`) qualquer texto que, sem espaços à esquerda, comece com "/" (comandos do robô de vendas), e também mensagem marcada como do dono do aparelho. O resto segue normal. Teste: `python3 -m pytest automations/terceiro-cerebro/test_barra_do_robo.py`. |
 | Skill | `~/.hermes/skills/dgc/dgc-cerebro/SKILL.md` (fonte: `hermes/skills/dgc-cerebro/SKILL.md`) | |
@@ -110,6 +110,15 @@ número da DGC; a Evolution segue como o outro aparelho do robô de vendas.
    ```
    Confira `active (running)` (mesmo comando com `status`) e `free -h` com mais de 3 GB disponíveis.
 2. Criar as rodadas de cobrança: `deploy/cron-jobs.md`.
+
+## Grupo dos sócios
+
+Desde 26/11 o Hermes está no grupo "DGC Hub · Sócios + Hermes" (Gabriel, Danilo e o número da DGC). Trabalho (cobrança, crítica, erros e
+vitórias, sempre com prova) vai para o grupo; o privado fica para assunto pessoal. As duas rodadas diárias (`deploy/cron-jobs.md`) falam no grupo,
+com teto de 3 mensagens espontâneas por dia (`quadro cota grupo` / `quadro enviei grupo`). Os sócios podem pedir rotinas novas no grupo e o Hermes
+mesmo cria o job de cron. O Danilo está em `SOCIOS` (`danilo:<telefone>`) e na allowlist; o nome e o LID dele o Hermes aprende na primeira
+mensagem e guarda na memória. O robô de vendas (Evolution) usa o mesmo número: como ele só trata "/comandos" de sócio e o plugin
+`barra-do-robo` descarta os "/" no Hermes, os dois não se atropelam, mas vale conferir no primeiro dia como o robô trata mensagens do grupo.
 
 ## Quem é quem no WhatsApp (só na VM)
 

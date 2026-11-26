@@ -49,11 +49,12 @@ Toda saída é texto curto e já mascarado.
 | `quadro status <DGC-n> <status>` | `ok` |
 | `quadro aceitar <DGC-n> <interacao> --socio <nome>` | aceita o cartão, comenta `aprovado pelo <Sócio> via WhatsApp, em <dd/mm/aaaa hh:mm>` e imprime `ok` |
 | `quadro aprovar <approval> <DGC-n> --socio <nome>` | aprova, faz o mesmo comentário em `<DGC-n>` e imprime `ok` |
-| `quadro cota <socio>` | `pode` ou `esgotada` (só consulta) |
-| `quadro enviei <socio>` | reserva uma mensagem de forma atômica: `pode` (registrou) ou `esgotada` (não registrou) |
+| `quadro cota <socio\|grupo>` | `pode` ou `esgotada` (só consulta) |
+| `quadro enviei <socio\|grupo>` | reserva uma mensagem de forma atômica: `pode` (registrou) ou `esgotada` (não registrou) |
 | `quadro e-comando "<texto>"` | `sim` se o texto começa com `/`, senão `nao` |
 
-`<socio>` precisa ser um dos nomes em `SOCIOS`; sem `SOCIOS` configurado nenhum nome vale (falha fechada).
+`<socio>` precisa ser um dos nomes em `SOCIOS`; sem `SOCIOS` configurado nenhum nome vale (falha fechada). A chave `grupo` (teto do grupo dos
+sócios, contado à parte) vale só em `cota` e `enviei`, não como sócio em `pendencias`, `aprovar` nem `aceitar`; também exige `SOCIOS`.
 Em `pendencias`, uma tarefa que o quadro recusa ler (4xx) é pulada e a última linha avisa `(<n> tarefas não lidas)`.
 
 ### Regra da barra (cota)

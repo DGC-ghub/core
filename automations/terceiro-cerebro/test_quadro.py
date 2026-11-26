@@ -174,6 +174,27 @@ def test_cota_e_enviei(cfg, capsys):
     assert pc.chamadas == []  # a cota não fala com o quadro
 
 
+def test_cota_do_grupo_e_independente_dos_socios(cfg, capsys):
+    pc = PaperclipFalso()
+    assert rodar(["cota", "grupo"], pc, cfg, capsys) == (0, "pode\n")
+    for _ in range(3):
+        assert rodar(["enviei", "grupo"], pc, cfg, capsys) == (0, "pode\n")
+    assert rodar(["enviei", "grupo"], pc, cfg, capsys) == (0, "esgotada\n")
+    assert rodar(["cota", "grupo"], pc, cfg, capsys) == (0, "esgotada\n")
+    assert rodar(["cota", "gabriel"], pc, cfg, capsys) == (0, "pode\n")  # DM do sócio não foi gasta
+    assert rodar(["cota", " GRUPO "], pc, cfg, capsys) == (0, "esgotada\n")
+    assert pc.chamadas == []
+
+
+def test_grupo_nao_vale_como_socio(cfg, capsys):
+    for argv in (["pendencias", "grupo"], ["aprovar", "a", "DGC-1", "--socio", "grupo"],
+                 ["aceitar", "DGC-1", "i1", "--socio", "grupo"]):
+        pc = PaperclipFalso()
+        codigo, saida = rodar(argv, pc, cfg, capsys)
+        assert codigo == 1 and "sócio desconhecido: grupo" in saida
+        assert pc.chamadas == []
+
+
 def test_cota_fora_da_janela(cfg, capsys):
     noite = datetime(2026, 11, 26, 22, 0, tzinfo=FUSO)
     assert quadro.main(["cota", "gabriel"], pc=PaperclipFalso(), config=cfg, agora=noite) == 0
@@ -346,8 +367,8 @@ def test_sem_socios_configurados_falha_fechada(cfg, capsys, socios):
         del cfg["SOCIOS"]
     else:
         cfg["SOCIOS"] = socios
-    for argv in (["cota", "gabriel"], ["enviei", "gabriel"], ["pendencias", "gabriel"],
-                 ["aprovar", "a", "DGC-1", "--socio", "gabriel"]):
+    for argv in (["cota", "gabriel"], ["enviei", "gabriel"], ["cota", "grupo"], ["enviei", "grupo"],
+                 ["pendencias", "gabriel"], ["aprovar", "a", "DGC-1", "--socio", "gabriel"]):
         pc = PaperclipFalso()
         codigo, saida = rodar(argv, pc, cfg, capsys)
         assert (codigo, saida) == (1, "falta SOCIOS no cerebro.env\n")
