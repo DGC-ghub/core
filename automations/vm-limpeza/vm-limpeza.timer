@@ -1,0 +1,10 @@
+[Unit]
+Description=Limpeza diária do disco (05:00 UTC, fora dos backups das 03:30 a 03:45 e 06:30)
+
+[Timer]
+OnCalendar=*-*-* 05:00:00 UTC
+Persistent=true
+RandomizedDelaySec=300
+
+[Install]
+WantedBy=timers.target

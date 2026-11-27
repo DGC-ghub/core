@@ -1,0 +1,8 @@
+[Unit]
+Description=Limpeza diária do disco da VM trabalhadora (DGC-497)
+
+[Service]
+Type=oneshot
+ExecStart=%h/bin/vm-limpeza.sh --aplicar
+Nice=15
+IOSchedulingClass=idle
